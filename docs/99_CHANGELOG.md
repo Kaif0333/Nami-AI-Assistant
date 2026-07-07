@@ -1,5 +1,28 @@
 # 99 — Changelog
 
+## [0.4.0] - 2026-07-07
+
+### Added
+
+- Phase 3 approval request model, service, and API endpoints.
+- Phase 3 action log model, service, and API endpoints.
+- Safe action policy helper for approval-required and blocked actions.
+- Safe `demo_send_email` approval-flow endpoint with no real email send.
+- Dashboard Approvals page connected to the approval API.
+- Dashboard Logs page connected to the action-log API with filters.
+- Unit tests for policy, approval, and action-log service logic.
+
+### Changed
+
+- Chat now routes risky commands into approval requests before execution.
+- Chat no longer hardcodes OpenAI as the only provider.
+- Chat returns a clear provider setup error when no real AI provider is configured.
+
+### Notes
+
+- Approval and action-log persistence is in-memory until the database phase.
+- No Phase 4 memory/database work was started.
+
 ## [0.3.0] - 2026-07-07
 
 ### Added

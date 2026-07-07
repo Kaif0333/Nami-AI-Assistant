@@ -1,7 +1,8 @@
 export type ChatAction = {
   type: string;
-  status: "blocked" | "planned" | "none";
+  status: "approval_required" | "blocked" | "planned" | "none";
   summary: string;
+  approvalId?: string;
 };
 
 export type ChatResponseData = {

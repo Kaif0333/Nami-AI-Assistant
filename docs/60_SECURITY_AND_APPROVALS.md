@@ -18,17 +18,53 @@ Nami must never silently perform risky actions.
 - Deploy
 - Start screen control
 - Record meeting
+- Trigger external workflow that sends/submits/changes data
 
 ## Approval data
 
 Each approval request stores:
-- Action type
-- Summary
-- Payload preview
-- Risk level
-- Created time
-- Status
-- Result
+- id
+- actionType
+- summary
+- description
+- payloadPreview
+- riskLevel
+- status
+- requestedBy
+- createdAt
+- approvedAt
+- rejectedAt
+- completedAt
+- errorMessage
+- metadata
+
+Allowed risk levels:
+- low
+- medium
+- high
+- blocked
+
+Allowed statuses:
+- pending
+- approved
+- rejected
+- expired
+- completed
+- failed
+- cancelled
+
+Phase 3 persistence note:
+- Approval records use an in-memory API service store until the database phase.
+- Database persistence belongs to Phase 4+ when PostgreSQL/Supabase and Prisma are added.
+
+## Blocked actions
+
+- CAPTCHA bypass
+- Credential theft
+- Secret recording
+- Disabling the approval system
+- Interview impersonation
+- Secret exfiltration
 
 ## Emergency stop
 

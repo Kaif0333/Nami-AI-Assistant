@@ -95,6 +95,9 @@ for (const pattern of forbiddenSecretPatterns) {
 
 const secretLikeKeys = new Set([
   "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "GROQ_API_KEY",
+  "OPENROUTER_API_KEY",
   "DATABASE_URL",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",

@@ -30,7 +30,7 @@ Before Codex starts building Phase 0, confirm:
 
 ## Accounts
 
-- [ ] OpenAI API account ready
+- [ ] At least one real AI provider configured when chat responses are required
 - [ ] Supabase account ready
 - [ ] n8n ready or planned
 - [ ] GitHub access ready

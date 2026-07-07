@@ -85,10 +85,24 @@ Phase 2 adds the first backend-powered chat flow:
 - `services/api`: NestJS API service.
 - `GET /api/health`: local API health check.
 - `POST /api/chat`: basic Nami chat endpoint.
-- Backend-only OpenAI Responses API client.
+- Backend-only AI provider abstraction.
 - Chat page connected to the local API through `NEXT_PUBLIC_API_URL`.
 - Standard API success/error envelopes and safe request/error logs.
 
-The OpenAI key must live only in ignored `.env.local`. Advanced tools, memory,
+Nami uses real AI providers only. If no provider is configured, the API returns
+a clear provider setup error instead of a fake assistant reply.
+
+## Phase 3 approval system and action logs
+
+Phase 3 adds reusable safety foundations:
+
+- Approval request model and API.
+- Action log model and API.
+- Safe action policy for approval-required and blocked actions.
+- Dashboard Approvals page with pending, approved, and rejected approvals.
+- Dashboard Logs page with action-log filters.
+- Safe `demo_send_email` approval-flow test with no real email send.
+
+Database persistence is pending for the database phase. Advanced tools, memory,
 voice, n8n, browser/screen control, email/calendar, resume/job workflows, and
 document generation remain locked for later approved phases.

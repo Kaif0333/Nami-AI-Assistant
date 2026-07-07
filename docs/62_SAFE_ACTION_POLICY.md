@@ -23,19 +23,35 @@ May require approval depending on context:
 ## High-risk actions
 
 Always require approval:
-- Send email/message
-- Submit form/application
-- Delete/edit important files
-- Run risky command
-- Push/deploy
-- Share personal data
-- Schedule meeting invite
-- Record meeting
+- `send_email`
+- `send_message`
+- `submit_form`
+- `submit_job_application`
+- `delete_file`
+- `modify_important_file`
+- `run_risky_command`
+- `install_global_package`
+- `push_to_github`
+- `deploy_app`
+- `share_personal_data`
+- `make_payment`
+- `change_system_settings`
+- `start_screen_control`
+- `record_meeting`
+- `trigger_external_send_workflow`
 
 ## Blocked actions
 
-- Interview impersonation
-- CAPTCHA bypass
-- Secret exfiltration
-- Hidden surveillance
-- Unauthorized access
+- `bypass_captcha`
+- `steal_credentials`
+- `secretly_record`
+- `disable_approval_system`
+- `interview_impersonation`
+- `exfiltrate_secrets`
+
+## Phase 3 implementation
+
+- `SafeActionPolicyService.requiresApproval()` checks whether an action must create an approval request first.
+- `SafeActionPolicyService.classifyRiskLevel()` returns `low`, `medium`, `high`, or `blocked`.
+- Blocked actions cannot be approved.
+- Safe demo actions may simulate approval flow but must not perform real external side effects.

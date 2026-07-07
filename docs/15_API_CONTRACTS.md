@@ -85,15 +85,48 @@ Request:
 {
   "actionType": "send_email",
   "summary": "string",
-  "payload": {},
-  "riskLevel": "low|medium|high"
+  "description": "string",
+  "payloadPreview": {},
+  "riskLevel": "low|medium|high|blocked",
+  "requestedBy": "string",
+  "metadata": {}
 }
 ```
 
 ### Approval decision
 
-`POST /api/approvals/:id/approve`  
+`GET /api/approvals`
+`GET /api/approvals/:id`
+`POST /api/approvals/:id/approve`
 `POST /api/approvals/:id/reject`
+
+### Approval demo
+
+`POST /api/approvals/demo-send-email`
+
+Creates a safe demo approval and action log. It does not send email.
+
+### Action logs
+
+`GET /api/action-logs`
+`GET /api/action-logs/:id`
+`POST /api/action-logs`
+
+Request:
+```json
+{
+  "commandId": "optional",
+  "approvalId": "optional",
+  "actionType": "send_email",
+  "summary": "string",
+  "status": "planned|approval_required|approved|rejected|running|completed|failed|cancelled|blocked",
+  "riskLevel": "low|medium|high|blocked",
+  "inputPreview": {},
+  "outputPreview": {},
+  "errorMessage": "optional",
+  "metadata": {}
+}
+```
 
 ### n8n trigger
 

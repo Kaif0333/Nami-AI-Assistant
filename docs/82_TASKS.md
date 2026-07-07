@@ -28,6 +28,18 @@
 - [x] Create Chat UI
 - [x] Add logs
 
-## Phase 3+
+## Phase 3
+
+- [x] Create approval request model/types
+- [x] Create action log model/types
+- [x] Implement safe action policy helper
+- [x] Add approval API endpoints
+- [x] Add action log API endpoints
+- [x] Update Approvals UI
+- [x] Update Logs UI
+- [x] Add safe demo risky action
+- [x] Add unit tests for policy/services
+
+## Phase 4+
 
 Continue following roadmap and phase prompts.

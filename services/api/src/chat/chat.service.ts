@@ -1,33 +1,28 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-  ServiceUnavailableException
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import OpenAI from "openai";
+import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 
+import { ActionLogsService } from "../action-logs/action-logs.service";
+import { AiProviderService } from "../ai/ai-provider.service";
+import { ApprovalsService } from "../approvals/approvals.service";
+import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
+import { ChatResponseData } from "./chat.types";
 import { ChatRequestDto } from "./dto/chat-request.dto";
 import { NAMI_CHAT_INSTRUCTIONS } from "./nami-chat.prompt";
-import { ChatResponseData } from "./chat.types";
 
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private readonly client: OpenAI | null;
-  private readonly model: string;
 
-  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
-    const apiKey = this.config.get<string>("OPENAI_API_KEY")?.trim();
-
-    this.client = apiKey ? new OpenAI({ apiKey }) : null;
-    this.model = this.config.get<string>("OPENAI_DEFAULT_MODEL") ?? "gpt-5.5";
-  }
+  constructor(
+    @Inject(AiProviderService)
+    private readonly aiProvider: AiProviderService,
+    @Inject(SafeActionPolicyService)
+    private readonly policy: SafeActionPolicyService,
+    @Inject(ApprovalsService)
+    private readonly approvalsService: ApprovalsService,
+    @Inject(ActionLogsService)
+    private readonly actionLogsService: ActionLogsService
+  ) {}
 
   async sendMessage(input: ChatRequestDto): Promise<ChatResponseData> {
     const message = input.message.trim();
@@ -45,97 +40,95 @@ export class ChatService {
       `chat.request conversationId=${conversationId} mode=${input.mode} chars=${message.length}`
     );
 
-    if (!this.client) {
-      throw new ServiceUnavailableException({
-        code: "OPENAI_API_KEY_MISSING",
-        message: "OpenAI API key is not configured for the Nami API service.",
-        details: {}
+    const detectedAction = this.policy.detectCommandAction(message);
+
+    if (detectedAction.matched && detectedAction.blocked) {
+      this.actionLogsService.createActionLog({
+        commandId: conversationId,
+        actionType: detectedAction.actionType,
+        summary: "Blocked chat-requested action",
+        status: "blocked",
+        riskLevel: "blocked",
+        inputPreview: { command: message },
+        errorMessage: detectedAction.reason,
+        metadata: {
+          source: "chat",
+          realExternalAction: false
+        }
       });
-    }
-
-    try {
-      const response = await this.client.responses.create({
-        model: this.model,
-        reasoning: { effort: "low" },
-        instructions: NAMI_CHAT_INSTRUCTIONS,
-        input: message
-      });
-
-      const reply =
-        response.output_text?.trim() ||
-        "I received that, but I could not produce a useful response.";
-
-      this.logger.log(
-        `chat.response conversationId=${conversationId} responseId=${response.id}`
-      );
 
       return {
-        reply,
+        reply:
+          "This action is blocked by Nami's safety policy and was not executed.",
         conversationId,
-        actions: []
-      };
-    } catch (error) {
-      const upstreamError = this.createUpstreamError(error);
-
-      this.logger.warn(
-        `chat.openai_error conversationId=${conversationId} status=${upstreamError.status} code=${upstreamError.code}`
-      );
-
-      throw upstreamError.exception;
-    }
-  }
-
-  private createUpstreamError(error: unknown) {
-    const status = this.readErrorStatus(error);
-
-    if (status === 429) {
-      return {
-        status,
-        code: "OPENAI_QUOTA_EXCEEDED",
-        exception: new HttpException(
+        actions: [
           {
-            code: "OPENAI_QUOTA_EXCEEDED",
-            message:
-              "OpenAI quota or billing limit was reached for the configured API key.",
-            details: { status }
-          },
-          HttpStatus.TOO_MANY_REQUESTS
-        )
+            type: detectedAction.actionType,
+            status: "blocked",
+            summary: detectedAction.reason
+          }
+        ]
       };
     }
 
-    if (status === 401) {
+    if (detectedAction.matched && detectedAction.approvalRequired) {
+      const approval = this.approvalsService.createApprovalRequest({
+        actionType: detectedAction.actionType,
+        summary: `Approval required: ${detectedAction.actionType.replaceAll("_", " ")}`,
+        description:
+          "Chat requested a risky action. No external action has been executed.",
+        payloadPreview: { command: message },
+        riskLevel: detectedAction.riskLevel,
+        requestedBy: "Kaif",
+        metadata: {
+          source: "chat",
+          conversationId,
+          realExternalAction: false
+        }
+      });
+
+      this.actionLogsService.createActionLog({
+        commandId: conversationId,
+        approvalId: approval.id,
+        actionType: approval.actionType,
+        summary: approval.summary,
+        status: "approval_required",
+        riskLevel: approval.riskLevel,
+        inputPreview: approval.payloadPreview,
+        metadata: {
+          source: "chat",
+          realExternalAction: false
+        }
+      });
+
       return {
-        status,
-        code: "OPENAI_AUTH_FAILED",
-        exception: new ServiceUnavailableException({
-          code: "OPENAI_AUTH_FAILED",
-          message: "OpenAI API authentication failed for the configured key.",
-          details: { status }
-        })
+        reply:
+          "Approval request created. Review it in Approvals before any action can run.",
+        conversationId,
+        actions: [
+          {
+            type: approval.actionType,
+            status: "approval_required",
+            summary: approval.summary,
+            approvalId: approval.id
+          }
+        ]
       };
     }
+
+    const response = await this.aiProvider.generateText({
+      instructions: NAMI_CHAT_INSTRUCTIONS,
+      input: message
+    });
+
+    this.logger.log(
+      `chat.response conversationId=${conversationId} provider=${response.provider} model=${response.model}`
+    );
 
     return {
-      status,
-      code: "OPENAI_REQUEST_FAILED",
-      exception: new BadGatewayException({
-        code: "OPENAI_REQUEST_FAILED",
-        message: "Nami could not reach the OpenAI model. Try again in a moment.",
-        details: { status }
-      })
+      reply: response.text,
+      conversationId,
+      actions: []
     };
-  }
-
-  private readErrorStatus(error: unknown) {
-    if (typeof error === "object" && error !== null && "status" in error) {
-      const status = (error as { status?: unknown }).status;
-
-      if (typeof status === "number") {
-        return status;
-      }
-    }
-
-    return 502;
   }
 }

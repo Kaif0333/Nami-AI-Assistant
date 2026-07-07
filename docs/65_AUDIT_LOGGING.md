@@ -22,11 +22,31 @@
 ## Log fields
 
 - id
-- timestamp
-- user command
-- action type
+- commandId
+- approvalId
+- actionType
+- summary
 - status
-- risk level
-- approval id
-- error
+- riskLevel
+- inputPreview
+- outputPreview
+- errorMessage
+- createdAt
+- startedAt
+- completedAt
 - metadata
+
+Allowed statuses:
+- planned
+- approval_required
+- approved
+- rejected
+- running
+- completed
+- failed
+- cancelled
+- blocked
+
+Phase 3 persistence note:
+- Action logs use an in-memory API service store until the database phase.
+- Previews are sanitized before storage and must not contain full secrets.

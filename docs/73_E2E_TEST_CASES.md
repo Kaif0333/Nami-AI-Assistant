@@ -10,7 +10,7 @@
 
 ## Approval
 
-1. Trigger high-risk mock action.
+1. Trigger high-risk safe demo action.
 2. Approval request appears.
 3. Reject action.
 4. Confirm action not executed.

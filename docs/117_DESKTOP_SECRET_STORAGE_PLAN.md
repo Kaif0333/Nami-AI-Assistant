@@ -29,7 +29,7 @@ Use one of:
 Settings page should show:
 
 ```text
-OpenAI API key: configured
+AI provider key: configured
 Supabase URL: configured
 n8n webhook: missing
 ```

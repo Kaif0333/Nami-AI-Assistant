@@ -8,6 +8,62 @@ export type ChatResponseData = {
   }>;
 };
 
+export type RiskLevel = "low" | "medium" | "high" | "blocked";
+
+export type ApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type ActionLogStatus =
+  | "planned"
+  | "approval_required"
+  | "approved"
+  | "rejected"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "blocked";
+
+export type ApprovalRequest = {
+  id: string;
+  actionType: string;
+  summary: string;
+  description: string;
+  payloadPreview: Record<string, unknown>;
+  riskLevel: RiskLevel;
+  status: ApprovalStatus;
+  requestedBy: string;
+  createdAt: string;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ActionLog = {
+  id: string;
+  commandId: string | null;
+  approvalId: string | null;
+  actionType: string;
+  summary: string;
+  status: ActionLogStatus;
+  riskLevel: RiskLevel;
+  inputPreview: Record<string, unknown>;
+  outputPreview: Record<string, unknown>;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  metadata: Record<string, unknown>;
+};
+
 type ApiSuccess<T> = {
   success: true;
   data: T;
@@ -28,24 +84,17 @@ export function getApiBaseUrl() {
   return apiBaseUrl;
 }
 
-export async function sendChatMessage(input: {
-  conversationId?: string;
-  message: string;
-}) {
-  const response = await fetch(`${apiBaseUrl}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      conversationId: input.conversationId,
-      message: input.message,
-      mode: "chat"
-    })
+async function apiRequest<T>(path: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+
+  const response = await fetch(`${apiBaseUrl}/api${path}`, {
+    ...init,
+    headers
   });
 
   const payload = (await response.json().catch(() => null)) as
-    | ApiSuccess<ChatResponseData>
+    | ApiSuccess<T>
     | ApiFailure
     | null;
 
@@ -58,4 +107,79 @@ export async function sendChatMessage(input: {
   }
 
   return payload.data;
+}
+
+export async function sendChatMessage(input: {
+  conversationId?: string;
+  message: string;
+}) {
+  return apiRequest<ChatResponseData>("/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      conversationId: input.conversationId,
+      message: input.message,
+      mode: "chat"
+    })
+  });
+}
+
+export async function listApprovals(filters?: {
+  status?: string;
+  riskLevel?: string;
+  actionType?: string;
+}) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.size ? `?${params.toString()}` : "";
+  const data = await apiRequest<{ approvals: ApprovalRequest[] }>(
+    `/approvals${query}`
+  );
+
+  return data.approvals;
+}
+
+export async function createDemoSendEmailApproval() {
+  return apiRequest<ApprovalRequest>("/approvals/demo-send-email", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function approveApproval(id: string) {
+  return apiRequest<ApprovalRequest>(`/approvals/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function rejectApproval(id: string, reason?: string) {
+  return apiRequest<ApprovalRequest>(`/approvals/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason })
+  });
+}
+
+export async function listActionLogs(filters?: {
+  status?: string;
+  riskLevel?: string;
+  actionType?: string;
+}) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.size ? `?${params.toString()}` : "";
+  const data = await apiRequest<{ logs: ActionLog[] }>(`/action-logs${query}`);
+
+  return data.logs;
 }

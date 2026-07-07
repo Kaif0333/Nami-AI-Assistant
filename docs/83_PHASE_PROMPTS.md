@@ -14,7 +14,7 @@ Add backend API and basic chat flow. Use environment variables for API keys. Add
 
 ## Phase 3 prompt
 
-Implement approval and action log system. Add UI for approval cards. Mock risky actions for testing. Do not connect real email/submission yet.
+Implement approval and action log system. Add UI for approval cards. Add safe demo actions only for approval-flow testing. Do not connect real email/submission yet.
 
 ## Phase 4 prompt
 
