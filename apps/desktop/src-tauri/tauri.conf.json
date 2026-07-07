@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nami AI Assistant",
+  "version": "0.2.0",
+  "identifier": "com.kaif.nami",
+  "build": {
+    "beforeDevCommand": "corepack pnpm --dir ../web-dashboard dev",
+    "beforeBuildCommand": "corepack pnpm --dir ../web-dashboard build",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../../web-dashboard/out"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Nami AI Assistant",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}

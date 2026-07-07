@@ -1,0 +1,79 @@
+# Nami AI Assistant
+
+**Nami AI Assistant** is Kaif's personal JARVIS-like AI operating system.
+
+It is designed to become a voice-first, screen-aware, memory-powered, automation-capable AI assistant that can help with research, coding, jobs, resumes, clients, documents, email/calendar, n8n automations, browser workflows, and safe computer control.
+
+## Repository
+
+GitHub repo: `Kaif0333/Nami-AI-Assistant`
+
+## Main decision
+
+Nami is not just a chatbot.
+
+Nami is a modular AI operating system with:
+
+- Desktop/dashboard app
+- AI brain and agents
+- Voice system
+- Memory system
+- Research system
+- n8n automation bridge
+- Email/calendar assistant
+- Resume/job assistant
+- Client/project assistant
+- Document generation
+- Browser automation
+- Screen/computer-control module
+- Approval and security system
+- Codex builder module
+
+## How Codex should use this repository
+
+Codex must first read:
+
+1. `MASTER_CODEX_PROMPT.md`
+2. `AGENTS.md`
+3. `DOCUMENT_INDEX.md`
+4. Everything inside `docs/`
+
+Codex must not start coding until it understands the product, roadmap, architecture, safety rules, tests, and final acceptance criteria.
+
+## Non-negotiable build rule
+
+Build phase by phase:
+
+```text
+Plan → Build → Test → Fix → Document → Commit → Move to next phase
+```
+
+Do not build all features in one prompt.
+
+## Phase 0 foundation
+
+This repository currently contains only the foundation for Nami:
+
+- Canonical documentation copied into the root and `docs/`
+- pnpm workspace configuration
+- Monorepo folders for apps, services, packages, scripts, Docker, and tests
+- Placeholder README files for future modules
+- `.env.example` with placeholders only
+- `.env.local` ignored by Git
+
+No AI chat, voice, memory, n8n, browser automation, screen control, email/calendar,
+resume/job workflow, document generation, or deployment feature is implemented in
+Phase 0.
+
+## Phase 1 dashboard shell
+
+Phase 1 adds the first usable dashboard surface:
+
+- `apps/web-dashboard`: Next.js App Router dashboard with TypeScript and Tailwind CSS.
+- `apps/desktop`: Tauri v2 shell configuration pointed at the web dashboard.
+- V1 pages: Home, Chat, Tasks, Projects, Automations, Approvals, Logs, Settings.
+- shadcn-style local UI primitives for cards, buttons, inputs, badges, separators, and tables.
+
+The dashboard remains local and visual only. AI, voice, memory, n8n, browser,
+screen, email/calendar, resume/job, and document workflows are still deferred to
+later approved phases.

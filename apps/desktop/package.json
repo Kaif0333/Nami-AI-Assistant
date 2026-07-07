@@ -1,0 +1,13 @@
+{
+  "name": "@nami/desktop",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "typecheck": "echo \"Desktop Rust typecheck requires Rust toolchain.\""
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.2"
+  }
+}

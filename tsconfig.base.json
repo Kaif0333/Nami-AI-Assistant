@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nami/config/*": ["packages/config/src/*"],
+      "@nami/prompts/*": ["packages/prompts/src/*"],
+      "@nami/security/*": ["packages/security/src/*"],
+      "@nami/shared/*": ["packages/shared/src/*"],
+      "@nami/types/*": ["packages/types/src/*"],
+      "@nami/ui/*": ["packages/ui/src/*"]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[package]
+name = "nami_desktop"
+version = "0.2.0"
+description = "Nami AI Assistant desktop shell"
+authors = ["Kaif"]
+edition = "2021"
+
+[lib]
+name = "nami_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

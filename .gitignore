@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Docker / local data
+docker-data/
+postgres-data/
+redis-data/
+
+# test outputs
+coverage/
+playwright-report/
+test-results/
+
+# generated local files
+.local/
+tmp/
+
+# attached documentation input pack
+Nami_Codex_Final_Essential_Documentation/
