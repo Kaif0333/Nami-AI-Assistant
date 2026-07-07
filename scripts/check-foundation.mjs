@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -62,7 +63,13 @@ if (!gitignore.includes(".env.local")) {
 }
 
 if (existsSync(join(root, ".env.local"))) {
-  failures.push(".env.local must not exist in the repository");
+  const checkIgnore = spawnSync("git", ["check-ignore", "-q", ".env.local"], {
+    cwd: root
+  });
+
+  if (checkIgnore.status !== 0) {
+    failures.push(".env.local exists but is not ignored by Git");
+  }
 }
 
 const workspace = readFileSync(join(root, "pnpm-workspace.yaml"), "utf8");

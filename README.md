@@ -77,3 +77,18 @@ Phase 1 adds the first usable dashboard surface:
 The dashboard remains local and visual only. AI, voice, memory, n8n, browser,
 screen, email/calendar, resume/job, and document workflows are still deferred to
 later approved phases.
+
+## Phase 2 chat brain
+
+Phase 2 adds the first backend-powered chat flow:
+
+- `services/api`: NestJS API service.
+- `GET /api/health`: local API health check.
+- `POST /api/chat`: basic Nami chat endpoint.
+- Backend-only OpenAI Responses API client.
+- Chat page connected to the local API through `NEXT_PUBLIC_API_URL`.
+- Standard API success/error envelopes and safe request/error logs.
+
+The OpenAI key must live only in ignored `.env.local`. Advanced tools, memory,
+voice, n8n, browser/screen control, email/calendar, resume/job workflows, and
+document generation remain locked for later approved phases.

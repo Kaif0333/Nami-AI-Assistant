@@ -1,13 +1,25 @@
 # API Service
 
-Future NestJS API service for Nami.
+NestJS backend API for Nami.
 
-Planned ownership:
+## Phase 2 ownership
 
-- Chat API
-- Command router API
-- Approvals API
-- Logs API
-- Settings API
+- `GET /api/health`
+- `POST /api/chat`
+- Backend-only OpenAI Responses API client
+- Basic request/error logging
+- Standard JSON success/error envelopes
 
-Phase 0 placeholder only.
+## Run locally
+
+```bash
+corepack pnpm dev:api
+```
+
+The service defaults to `http://localhost:4000/api`.
+
+Required local secret:
+
+- `OPENAI_API_KEY` in ignored root `.env.local`
+
+Do not commit real secrets.

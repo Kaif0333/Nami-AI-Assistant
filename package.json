@@ -17,6 +17,9 @@
   "scripts": {
     "check": "node scripts/check-foundation.mjs",
     "check:foundation": "node scripts/check-foundation.mjs",
+    "dev:api": "corepack pnpm --filter @nami/api dev",
+    "build:api": "corepack pnpm --filter @nami/api build",
+    "typecheck:api": "corepack pnpm --filter @nami/api typecheck",
     "dev:web": "corepack pnpm --filter @nami/web-dashboard dev",
     "build:web": "corepack pnpm --filter @nami/web-dashboard build",
     "lint:web": "corepack pnpm --filter @nami/web-dashboard lint",

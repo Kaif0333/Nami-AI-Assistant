@@ -38,25 +38,25 @@ export const navItems: NavItem[] = [
 ];
 
 export const systemStats = [
-  { label: "Build phase", value: "Phase 1", detail: "Dashboard shell" },
+  { label: "Build phase", value: "Phase 2", detail: "Chat brain" },
   { label: "Risk mode", value: "Safe", detail: "Approvals locked" },
-  { label: "Runtime", value: "Local", detail: "No live agents" }
+  { label: "Runtime", value: "Local", detail: "API chat only" }
 ];
 
 export const todayTasks = [
   {
-    title: "Finish dashboard shell",
-    context: "Tauri + Next.js structure",
+    title: "Wire backend chat",
+    context: "NestJS + OpenAI Responses",
     status: "In progress"
   },
   {
-    title: "Prepare approval UI",
-    context: "Static cards only",
+    title: "Keep advanced tools locked",
+    context: "No external actions",
     status: "Queued"
   },
   {
-    title: "Document Phase 1 checks",
-    context: "Changelog and report",
+    title: "Document Phase 2 checks",
+    context: "API and dashboard",
     status: "Queued"
   }
 ];
@@ -122,13 +122,13 @@ export const projects = [
   {
     name: "Nami dashboard",
     health: "Active",
-    progress: "Phase 1",
+    progress: "Phase 2",
     icon: Gauge
   },
   {
     name: "Agent runtime",
     health: "Planned",
-    progress: "Phase 2+",
+    progress: "Phase 3+",
     icon: Bot
   },
   {

@@ -1,5 +1,22 @@
 # 99 — Changelog
 
+## [0.3.0] - 2026-07-07
+
+### Added
+
+- Phase 2 NestJS API service under `services/api`.
+- `GET /api/health` and `POST /api/chat`.
+- Backend-only OpenAI Responses API client using env-based configuration.
+- Standard API success/error response envelopes.
+- Basic safe request/error logging for chat requests.
+- Dashboard Chat page connected to the local API.
+
+### Notes
+
+- Advanced features remain locked for later phases.
+- Live OpenAI smoke testing reached the provider but returned a quota/billing
+  limit error for the configured key.
+
 ## [0.2.2] - 2026-07-07
 
 ### Changed
