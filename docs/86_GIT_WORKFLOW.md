@@ -2,13 +2,22 @@
 
 ## Branching
 
-Main branch:
+Protected release branch:
 - `main`
+
+Active development branch:
+- `develop`
 
 Feature branch format:
 - `feature/phase-01-dashboard`
 - `feature/memory-service`
 - `fix/chat-api-error`
+
+Phase workflow:
+- Build and verify each phase on `develop`.
+- Commit and push completed phase work to `origin/develop`.
+- Do not commit, merge, or push to `main` until Kaif explicitly approves a stable release promotion.
+- Keep `main` as the clean release branch for final, verified builds only.
 
 ## Commits
 
@@ -22,5 +31,6 @@ Commit format:
 
 - Do not commit secrets.
 - Commit small logical changes.
-- Ask before pushing.
+- Push phase work only to `develop` after checks pass.
+- Ask before pushing or merging anything to `main`.
 - Use pull requests later if needed.

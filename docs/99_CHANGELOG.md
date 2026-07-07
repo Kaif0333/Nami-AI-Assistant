@@ -1,5 +1,13 @@
 # 99 — Changelog
 
+## [0.2.2] - 2026-07-07
+
+### Changed
+
+- Documented the `develop` and `main` branch workflow:
+  phase work is committed and pushed to `develop`; `main` remains release-only
+  until Kaif explicitly approves promotion.
+
 ## [0.2.1] - 2026-07-07
 
 ### Changed
