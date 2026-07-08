@@ -4,10 +4,10 @@
   "private": true,
   "description": "Nami AI Assistant foundation monorepo.",
   "license": "UNLICENSED",
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@11.10.0",
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
+    "pnpm": ">=11.0.0"
   },
   "workspaces": [
     "apps/*",
@@ -30,9 +30,16 @@
     "lint:web": "corepack pnpm --filter @nami/web-dashboard lint",
     "typecheck:web": "corepack pnpm --filter @nami/web-dashboard typecheck",
     "dev:desktop": "corepack pnpm --filter @nami/desktop dev",
-    "build": "corepack pnpm -r --if-present build",
+    "build:desktop": "corepack pnpm --filter @nami/desktop build",
+    "test:e2e": "corepack pnpm build:api && corepack pnpm build:web && corepack pnpm exec playwright test",
+    "test:all": "corepack pnpm test && corepack pnpm test:e2e",
+    "build": "corepack pnpm build:api && corepack pnpm build:web && corepack pnpm build:desktop",
     "lint": "corepack pnpm -r --if-present lint",
     "typecheck": "corepack pnpm -r --if-present typecheck",
     "test": "corepack pnpm -r --if-present test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "serve": "14.2.6"
   }
 }

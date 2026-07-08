@@ -8,6 +8,12 @@ Use:
 pnpm + pnpm workspaces
 ```
 
+Repository pin:
+
+```text
+pnpm 11.x through Corepack
+```
+
 ## Why
 
 - Fast installs
@@ -44,3 +50,13 @@ Add Turborepo later only if:
 ## Codex rule
 
 Codex must not switch to npm/yarn randomly unless Kaif approves.
+
+Use `corepack pnpm ...` for install, test, build, and package commands so local
+machines and CI use the same package-manager version.
+
+Project-level pnpm settings belong in `pnpm-workspace.yaml`; keep `.npmrc`
+limited to npm-compatible settings so npm and npx do not print project-config
+warnings.
+
+Root builds must stay sequential because the Tauri desktop build can trigger the
+web dashboard build through its Tauri `beforeBuildCommand`.

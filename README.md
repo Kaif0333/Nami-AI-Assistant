@@ -120,3 +120,23 @@ Phase 4 adds the first durable data foundation:
 
 Semantic vector search is schema-ready but remains disabled until a real embedding
 provider/model is configured. No synthetic embeddings are generated.
+
+## Local verification
+
+Use Corepack so the repository-pinned pnpm version is used:
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm test
+corepack pnpm test:e2e
+corepack pnpm build
+```
+
+`corepack pnpm build` runs API, web, and desktop builds sequentially. This avoids
+the desktop shell starting a web build at the same time as the root web build.
+
+Playwright and the static web server are repository dev dependencies, so e2e
+tests should run with `corepack pnpm test:e2e` instead of transient `npx`
+packages.

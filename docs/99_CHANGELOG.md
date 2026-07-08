@@ -1,5 +1,26 @@
 # 99 — Changelog
 
+## [0.5.2] - 2026-07-08
+
+### Added
+
+- Repository-owned Playwright e2e test for the Memory page and real local API.
+- Root `test:e2e`, `test:all`, and `build:desktop` scripts.
+
+### Changed
+
+- Pinned pnpm to 11.x through Corepack and refreshed the lockfile.
+- Root `build` now runs API, web, and desktop builds sequentially.
+- `.npmrc` now avoids pnpm-only project config keys that make npm/npx warn.
+- pnpm native build-script approvals are recorded in `pnpm-workspace.yaml`.
+
+### Notes
+
+- E2e checks now use repository dev dependencies instead of transient `npx`
+  package resolution.
+- This is tooling and verification hardening only; no Phase 5 features were
+  started.
+
 ## [0.5.1] - 2026-07-08
 
 ### Added
