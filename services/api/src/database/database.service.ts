@@ -18,6 +18,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (!isPostgresConnectionString(databaseUrl)) {
+      this.prisma = null;
+      this.logger.warn(
+        "DATABASE_URL must start with postgresql:// or postgres://. Using in-memory fallback stores."
+      );
+      return;
+    }
+
     const adapter = new PrismaPg({
       connectionString: databaseUrl
     });
@@ -45,4 +53,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.prisma?.$disconnect();
   }
+}
+
+function isPostgresConnectionString(value: string) {
+  return value.startsWith("postgresql://") || value.startsWith("postgres://");
 }

@@ -1,0 +1,13 @@
+services:
+  nami-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: nami-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${NAMI_POSTGRES_USER:-nami}
+      POSTGRES_PASSWORD: ${NAMI_POSTGRES_PASSWORD:?Set NAMI_POSTGRES_PASSWORD in your local shell}
+      POSTGRES_DB: ${NAMI_POSTGRES_DB:-nami}
+    ports:
+      - "${NAMI_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - ../postgres-data/nami-dev:/var/lib/postgresql/data

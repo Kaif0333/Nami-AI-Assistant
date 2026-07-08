@@ -8,5 +8,6 @@ Current Phase 1 scope:
 - Desktop window pointed at the `apps/web-dashboard` Next.js app.
 - Static production output expected at `apps/web-dashboard/out`.
 
-Rust is required before `pnpm --filter @nami/desktop dev` or `build` can compile
-locally.
+Rust and Visual Studio C++ Build Tools are required before
+`pnpm --filter @nami/desktop dev` or `build` can compile locally. Desktop
+typecheck now runs `cargo check` against the Tauri crate.

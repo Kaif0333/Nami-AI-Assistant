@@ -52,7 +52,8 @@ corepack pnpm db:generate
 corepack pnpm db:migrate:deploy
 ```
 
-Set `DATABASE_URL` in `.env.local` for local database persistence. Use
+Set `DATABASE_URL` in `.env.local` for local database persistence. It must be a
+PostgreSQL connection string, not the HTTPS `SUPABASE_URL`. Use
 `DATABASE_DIRECT_URL` for direct migration access when Supabase provides a
 separate direct connection string.
 

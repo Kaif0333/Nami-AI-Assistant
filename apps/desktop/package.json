@@ -3,9 +3,9 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "typecheck": "echo \"Desktop Rust typecheck requires Rust toolchain.\""
+    "dev": "node ../../scripts/with-cargo-env.mjs tauri dev",
+    "build": "node ../../scripts/with-cargo-env.mjs tauri build",
+    "typecheck": "node ../../scripts/cargo-check.mjs src-tauri/Cargo.toml"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.2"
