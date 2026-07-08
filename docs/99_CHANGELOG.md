@@ -1,5 +1,24 @@
 # 99 — Changelog
 
+## [0.5.3] - 2026-07-08
+
+### Added
+
+- Real Gemini, Groq, and OpenRouter text-provider implementations for chat.
+- Provider unit tests for Gemini, Groq, OpenRouter, and unsupported future
+  OpenAI behavior.
+
+### Changed
+
+- `.env.example` now documents the currently executable real providers and
+  keeps OpenAI as a future placeholder.
+
+### Notes
+
+- Groq `llama-3.1-8b-instant` benchmarked fastest among the configured local
+  cloud-provider keys.
+- No fake or mock AI fallback was added.
+
 ## [0.5.2] - 2026-07-08
 
 ### Added

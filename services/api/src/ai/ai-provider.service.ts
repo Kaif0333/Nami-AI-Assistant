@@ -15,6 +15,25 @@ type OllamaGenerateResponse = {
   model?: string;
 };
 
+type GeminiGenerateResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+  }>;
+};
+
+type OpenAiCompatibleChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ text?: string }>;
+    };
+  }>;
+  model?: string;
+};
+
 @Injectable()
 export class AiProviderService {
   private readonly logger = new Logger(AiProviderService.name);
@@ -26,6 +45,23 @@ export class AiProviderService {
 
     if (provider === "ollama") {
       return this.generateWithOllama(input);
+    }
+
+    if (provider === "gemini") {
+      return this.generateWithGemini(input);
+    }
+
+    if (provider === "groq") {
+      return this.generateWithOpenAiCompatibleProvider(input, {
+        apiKeyEnvName: "GROQ_API_KEY",
+        baseUrl: "https://api.groq.com/openai/v1",
+        modelEnvName: "GROQ_MODEL",
+        provider: "groq"
+      });
+    }
+
+    if (provider === "openrouter") {
+      return this.generateWithOpenRouter(input);
     }
 
     throw this.providerUnavailable(provider);
@@ -106,6 +142,195 @@ export class AiProviderService {
       );
       throw this.providerUnavailable("ollama");
     }
+  }
+
+  private async generateWithGemini(
+    input: GenerateTextInput
+  ): Promise<GenerateTextResult> {
+    const apiKey = this.config.get<string>("GEMINI_API_KEY")?.trim();
+    const model = this.config.get<string>("GEMINI_MODEL")?.trim();
+
+    if (!apiKey || !model) {
+      throw this.providerUnavailable("gemini");
+    }
+
+    try {
+      const modelPath = this.toGeminiModelPath(model);
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: input.instructions }]
+            },
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: input.input }]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 768
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        this.logger.warn(`gemini.unavailable status=${response.status}`);
+        throw this.providerUnavailable("gemini");
+      }
+
+      const payload = (await response.json()) as GeminiGenerateResponse;
+      const text = payload.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? "")
+        .join("")
+        .trim();
+
+      if (!text) {
+        throw this.providerUnavailable("gemini");
+      }
+
+      return {
+        text,
+        provider: "gemini",
+        model
+      };
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `gemini.request_failed message=${error instanceof Error ? error.message : "unknown"}`
+      );
+      throw this.providerUnavailable("gemini");
+    }
+  }
+
+  private async generateWithOpenRouter(
+    input: GenerateTextInput
+  ): Promise<GenerateTextResult> {
+    const apiKey = this.config.get<string>("OPENROUTER_API_KEY")?.trim();
+    const model = this.config.get<string>("OPENROUTER_MODEL")?.trim();
+
+    if (!apiKey || !model) {
+      throw this.providerUnavailable("openrouter");
+    }
+
+    return this.generateWithOpenAiCompatibleProvider(input, {
+      apiKey,
+      baseUrl: "https://openrouter.ai/api/v1",
+      headers: {
+        "HTTP-Referer": this.config.get<string>("APP_URL") ?? "http://localhost:3000",
+        "X-Title": this.config.get<string>("APP_NAME") ?? "Nami AI Assistant"
+      },
+      model,
+      provider: "openrouter"
+    });
+  }
+
+  private async generateWithOpenAiCompatibleProvider(
+    input: GenerateTextInput,
+    options: {
+      apiKey?: string;
+      apiKeyEnvName?: string;
+      baseUrl: string;
+      headers?: Record<string, string>;
+      model?: string;
+      modelEnvName?: string;
+      provider: "groq" | "openrouter";
+    }
+  ): Promise<GenerateTextResult> {
+    const apiKey =
+      options.apiKey ?? this.config.get<string>(options.apiKeyEnvName ?? "")?.trim();
+    const model =
+      options.model ?? this.config.get<string>(options.modelEnvName ?? "")?.trim();
+
+    if (!apiKey || !model) {
+      throw this.providerUnavailable(options.provider);
+    }
+
+    try {
+      const response = await fetch(
+        `${options.baseUrl.replace(/\/$/, "")}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            ...options.headers
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: input.instructions },
+              { role: "user", content: input.input }
+            ],
+            temperature: 0.4,
+            max_tokens: 768
+          })
+        }
+      );
+
+      if (!response.ok) {
+        this.logger.warn(`${options.provider}.unavailable status=${response.status}`);
+        throw this.providerUnavailable(options.provider);
+      }
+
+      const payload = (await response.json()) as OpenAiCompatibleChatResponse;
+      const text = this.extractChatText(payload);
+
+      if (!text) {
+        throw this.providerUnavailable(options.provider);
+      }
+
+      return {
+        text,
+        provider: options.provider,
+        model: payload.model ?? model
+      };
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `${options.provider}.request_failed message=${error instanceof Error ? error.message : "unknown"}`
+      );
+      throw this.providerUnavailable(options.provider);
+    }
+  }
+
+  private extractChatText(payload: OpenAiCompatibleChatResponse) {
+    const content = payload.choices?.[0]?.message?.content;
+
+    if (typeof content === "string") {
+      return content.trim();
+    }
+
+    if (Array.isArray(content)) {
+      return content
+        .map((part) => part.text ?? "")
+        .join("")
+        .trim();
+    }
+
+    return "";
+  }
+
+  private toGeminiModelPath(model: string) {
+    const modelPath = model.startsWith("models/") ? model : `models/${model}`;
+
+    return modelPath
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
   }
 
   private providerUnavailable(provider: string) {
