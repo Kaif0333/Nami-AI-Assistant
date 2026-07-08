@@ -109,9 +109,11 @@ export default function ChatPage() {
         {
           id: createId(),
           label: "Nami response received",
-          detail: response.actions.length
-            ? `${response.actions.length} action previews`
-            : "No actions requested",
+          detail: response.modelRoute
+            ? `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}`
+            : response.actions.length
+              ? `${response.actions.length} action previews`
+              : "No actions requested",
           status: "ok"
         },
         ...current.filter((item) => item.id !== requestEventId)

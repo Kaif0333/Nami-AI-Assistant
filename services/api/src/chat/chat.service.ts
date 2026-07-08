@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import { ActionLogsService } from "../action-logs/action-logs.service";
 import { AiProviderService } from "../ai/ai-provider.service";
+import { classifyAiTaskProfile } from "../ai/model-router";
 import { ApprovalsService } from "../approvals/approvals.service";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
 import { ChatResponseData } from "./chat.types";
@@ -116,19 +117,26 @@ export class ChatService {
       };
     }
 
+    const taskProfile = classifyAiTaskProfile(message);
     const response = await this.aiProvider.generateText({
       instructions: NAMI_CHAT_INSTRUCTIONS,
-      input: message
+      input: message,
+      taskProfile
     });
 
     this.logger.log(
-      `chat.response conversationId=${conversationId} provider=${response.provider} model=${response.model}`
+      `chat.response conversationId=${conversationId} taskProfile=${response.taskProfile} provider=${response.provider} model=${response.model}`
     );
 
     return {
       reply: response.text,
       conversationId,
-      actions: []
+      actions: [],
+      modelRoute: {
+        taskProfile: response.taskProfile,
+        provider: response.provider,
+        model: response.model
+      }
     };
   }
 }

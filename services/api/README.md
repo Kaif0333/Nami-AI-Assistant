@@ -45,9 +45,30 @@ companions when either one is configured.
 
 AI provider behavior:
 
-- Set `AI_PROVIDER=ollama` plus `OLLAMA_MODEL` to use local Ollama.
+- Set route variables such as `AI_FAST_PROVIDER`, `AI_CODING_PROVIDER`, and
+  `AI_REASONING_PROVIDER` to dedicate providers/models by task profile.
+- Coding, reasoning, research, local/private, and fast chat requests are routed
+  before provider execution.
+- Keep `AI_PROVIDER` and provider-specific model variables as fallback defaults.
 - If no real provider is configured, chat returns a provider setup error.
 - OpenAI is reserved for a future provider implementation.
+- If a selected provider/model is unavailable, chat returns the provider
+  unavailable error instead of a fake assistant reply.
+
+Current local free/free-tier recommendation:
+
+```text
+AI_FAST_PROVIDER=groq
+AI_FAST_MODEL=llama-3.1-8b-instant
+AI_CODING_PROVIDER=groq
+AI_CODING_MODEL=llama-3.3-70b-versatile
+AI_REASONING_PROVIDER=groq
+AI_REASONING_MODEL=llama-3.3-70b-versatile
+AI_RESEARCH_PROVIDER=gemini
+AI_RESEARCH_MODEL=gemini-3.1-flash-lite
+AI_LOCAL_PROVIDER=ollama
+AI_LOCAL_MODEL=qwen3:4b
+```
 
 Database commands:
 

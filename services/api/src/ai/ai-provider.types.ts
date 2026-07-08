@@ -8,15 +8,33 @@ export const aiProviderNames = [
 
 export type AiProviderName = (typeof aiProviderNames)[number];
 
+export const aiTaskProfiles = [
+  "fast",
+  "coding",
+  "reasoning",
+  "research",
+  "local"
+] as const;
+
+export type AiTaskProfile = (typeof aiTaskProfiles)[number];
+
+export type ModelRoute = {
+  taskProfile: AiTaskProfile;
+  provider: AiProviderName;
+  model: string;
+};
+
 export type GenerateTextInput = {
   instructions: string;
   input: string;
+  taskProfile?: AiTaskProfile;
 };
 
 export type GenerateTextResult = {
   text: string;
   provider: AiProviderName;
   model: string;
+  taskProfile: AiTaskProfile;
 };
 
 export const AI_PROVIDER_NOT_CONFIGURED_MESSAGE =

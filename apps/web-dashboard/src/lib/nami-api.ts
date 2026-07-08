@@ -6,6 +6,11 @@ export type ChatResponseData = {
     status: string;
     summary: string;
   }>;
+  modelRoute?: {
+    taskProfile: "fast" | "coding" | "reasoning" | "research" | "local";
+    provider: string;
+    model: string;
+  };
 };
 
 export type RiskLevel = "low" | "medium" | "high" | "blocked";

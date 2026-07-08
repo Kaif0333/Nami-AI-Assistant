@@ -1,3 +1,5 @@
+import { ModelRoute } from "../ai/ai-provider.types";
+
 export type ChatAction = {
   type: string;
   status: "approval_required" | "blocked" | "planned" | "none";
@@ -9,4 +11,5 @@ export type ChatResponseData = {
   reply: string;
   conversationId: string;
   actions: ChatAction[];
+  modelRoute?: ModelRoute;
 };

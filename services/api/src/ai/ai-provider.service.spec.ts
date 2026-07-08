@@ -47,6 +47,41 @@ describe("AiProviderService", () => {
     assert.equal(JSON.parse(requestedBody).model, "llama-3.1-8b-instant");
     assert.equal(result.provider, "groq");
     assert.equal(result.text, "Groq is online.");
+    assert.equal(result.taskProfile, "fast");
+  });
+
+  it("routes coding tasks to the dedicated coding model", async () => {
+    let requestedBody = "";
+
+    globalThis.fetch = async (_url, init) => {
+      requestedBody = String(init?.body);
+
+      return jsonResponse({
+        choices: [{ message: { content: "Coding model is online." } }],
+        model: "llama-3.3-70b-versatile"
+      });
+    };
+
+    const service = new AiProviderService(
+      configService({
+        AI_CODING_MODEL: "llama-3.3-70b-versatile",
+        AI_CODING_PROVIDER: "groq",
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "test-groq-key",
+        GROQ_MODEL: "llama-3.1-8b-instant"
+      })
+    );
+
+    const result = await service.generateText({
+      input: "Fix this TypeScript error.",
+      instructions: "You are Nami.",
+      taskProfile: "coding"
+    });
+
+    assert.equal(JSON.parse(requestedBody).model, "llama-3.3-70b-versatile");
+    assert.equal(result.provider, "groq");
+    assert.equal(result.model, "llama-3.3-70b-versatile");
+    assert.equal(result.taskProfile, "coding");
   });
 
   it("uses OpenRouter chat completions when openrouter is selected", async () => {

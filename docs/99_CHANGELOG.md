@@ -1,5 +1,27 @@
 # 99 — Changelog
 
+## [0.5.4] - 2026-07-08
+
+### Added
+
+- Chat model routing for fast, coding, reasoning, research, and local task
+  profiles.
+- Model-route metadata in chat API responses and dashboard timeline entries.
+- Unit tests for task-profile classification and dedicated coding model routing.
+
+### Changed
+
+- Local model-routing docs now use the researched free/free-tier setup:
+  Groq fast chat, Groq 70B coding/reasoning, Gemini Flash-Lite research, and
+  Ollama local/private routing.
+- Chat runtime instructions now reflect the Phase 4 state.
+
+### Notes
+
+- OpenRouter free coding models are documented as backup candidates but are not
+  the default route because live testing saw upstream rate limits.
+- External actions remain approval-gated regardless of selected model.
+
 ## [0.5.3] - 2026-07-08
 
 ### Added
