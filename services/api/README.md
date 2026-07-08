@@ -27,6 +27,7 @@ NestJS backend API for Nami.
 - Prisma/PostgreSQL persistence when `DATABASE_URL` is configured
 - In-memory fallback for local development/tests without a database URL
 - pgvector-ready memory embedding schema
+- Supabase RLS hardening on Phase 4 public schema tables
 - Basic request/error logging
 - Standard JSON success/error envelopes
 
@@ -37,6 +38,10 @@ corepack pnpm dev:api
 ```
 
 The service defaults to `http://localhost:4000/api`.
+
+`WEB_DASHBOARD_ORIGIN` supports comma-separated origins. In non-production
+mode, `http://localhost:3000` and `http://127.0.0.1:3000` are treated as local
+companions when either one is configured.
 
 AI provider behavior:
 

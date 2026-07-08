@@ -10,6 +10,7 @@ The implemented schema lives in:
 
 - `services/api/prisma/schema.prisma`
 - `services/api/prisma/migrations/20260707161000_phase4_database_memory/migration.sql`
+- `services/api/prisma/migrations/20260708065000_enable_supabase_rls/migration.sql`
 
 Use Prisma for schema/types and organized SQL migrations. The Phase 4 migration
 enables `pgcrypto` and `vector`, then creates:
@@ -22,6 +23,12 @@ enables `pgcrypto` and `vector`, then creates:
 - `memories`
 - `memory_embeddings`
 - `settings`
+
+The RLS hardening migration enables row-level security on all Phase 4 public
+schema tables and conditionally revokes `anon`/`authenticated` table access
+when those Supabase roles exist. Nami's backend continues to access these
+tables through the database owner/service connection; direct public Data API
+access must be added later with explicit policies for the exact feature.
 
 Future modules may add the remaining tables from this planning document when
 their phases begin.

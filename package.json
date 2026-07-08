@@ -15,8 +15,10 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "node scripts/check-foundation.mjs",
+    "check": "node scripts/check-foundation.mjs && node scripts/check-secrets.mjs",
     "check:foundation": "node scripts/check-foundation.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:secrets:history": "node scripts/check-secrets.mjs --history",
     "dev:api": "corepack pnpm --filter @nami/api dev",
     "build:api": "corepack pnpm --filter @nami/api build",
     "typecheck:api": "corepack pnpm --filter @nami/api typecheck",

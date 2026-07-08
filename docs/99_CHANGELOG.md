@@ -1,5 +1,17 @@
 # 99 — Changelog
 
+## [0.5.1] - 2026-07-08
+
+### Added
+
+- Secret scanning script for tracked files and optional Git history checks.
+- Supabase RLS hardening migration for Phase 4 public schema tables.
+
+### Changed
+
+- `corepack pnpm check` now includes the tracked-file secret scan.
+- Secret management docs now include GitHub leak response steps.
+
 ## [0.5.0] - 2026-07-07
 
 ### Added
