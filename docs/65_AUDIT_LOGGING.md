@@ -47,6 +47,7 @@ Allowed statuses:
 - cancelled
 - blocked
 
-Phase 3 persistence note:
-- Action logs use an in-memory API service store until the database phase.
+Phase 4 persistence note:
+- Action logs persist through Prisma/PostgreSQL when `DATABASE_URL` is configured.
+- Local development and tests may use the in-memory fallback when no database URL is configured.
 - Previews are sanitized before storage and must not contain full secrets.

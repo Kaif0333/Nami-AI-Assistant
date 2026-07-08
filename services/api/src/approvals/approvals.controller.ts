@@ -15,7 +15,7 @@ export class ApprovalsController {
   ) {}
 
   @Get()
-  listApprovals(
+  async listApprovals(
     @Query("status") status?: string,
     @Query("riskLevel") riskLevel?: string,
     @Query("actionType") actionType?: string
@@ -23,7 +23,7 @@ export class ApprovalsController {
     return {
       success: true,
       data: {
-        approvals: this.approvalsService.listApprovalRequests({
+        approvals: await this.approvalsService.listApprovalRequests({
           status: status as never,
           riskLevel: riskLevel as never,
           actionType
@@ -33,8 +33,8 @@ export class ApprovalsController {
   }
 
   @Post("demo-send-email")
-  createDemoSendEmailApproval() {
-    const approval = this.approvalsService.createApprovalRequest({
+  async createDemoSendEmailApproval() {
+    const approval = await this.approvalsService.createApprovalRequest({
       actionType: "demo_send_email",
       summary: "Demo send-email approval",
       description:
@@ -52,7 +52,7 @@ export class ApprovalsController {
       }
     });
 
-    this.actionLogsService.createActionLog({
+    await this.actionLogsService.createActionLog({
       approvalId: approval.id,
       actionType: approval.actionType,
       summary: approval.summary,
@@ -72,18 +72,18 @@ export class ApprovalsController {
   }
 
   @Get(":id")
-  getApproval(@Param("id") id: string) {
+  async getApproval(@Param("id") id: string) {
     return {
       success: true,
-      data: this.approvalsService.getApprovalRequest(id)
+      data: await this.approvalsService.getApprovalRequest(id)
     };
   }
 
   @Post()
-  createApproval(@Body() body: CreateApprovalRequestDto) {
-    const approval = this.approvalsService.createApprovalRequest(body);
+  async createApproval(@Body() body: CreateApprovalRequestDto) {
+    const approval = await this.approvalsService.createApprovalRequest(body);
 
-    this.actionLogsService.createActionLog({
+    await this.actionLogsService.createActionLog({
       approvalId: approval.id,
       actionType: approval.actionType,
       summary: approval.summary,
@@ -102,9 +102,15 @@ export class ApprovalsController {
   }
 
   @Post(":id/approve")
-  approveApproval(@Param("id") id: string, @Body() body: ApprovalDecisionDto) {
-    const approval = this.approvalsService.approveRequest(id, body.metadata);
-    this.actionLogsService.markApprovalLogs(id, "approved");
+  async approveApproval(
+    @Param("id") id: string,
+    @Body() body: ApprovalDecisionDto
+  ) {
+    const approval = await this.approvalsService.approveRequest(
+      id,
+      body.metadata
+    );
+    await this.actionLogsService.markApprovalLogs(id, "approved");
 
     return {
       success: true,
@@ -113,13 +119,16 @@ export class ApprovalsController {
   }
 
   @Post(":id/reject")
-  rejectApproval(@Param("id") id: string, @Body() body: ApprovalDecisionDto) {
-    const approval = this.approvalsService.rejectRequest(
+  async rejectApproval(
+    @Param("id") id: string,
+    @Body() body: ApprovalDecisionDto
+  ) {
+    const approval = await this.approvalsService.rejectRequest(
       id,
       body.reason,
       body.metadata
     );
-    this.actionLogsService.markApprovalLogs(id, "rejected");
+    await this.actionLogsService.markApprovalLogs(id, "rejected");
 
     return {
       success: true,

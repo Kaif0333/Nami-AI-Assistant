@@ -1,5 +1,27 @@
 # 99 — Changelog
 
+## [0.5.0] - 2026-07-07
+
+### Added
+
+- Phase 4 Prisma/PostgreSQL database foundation.
+- Prisma migration for approval requests, action logs, conversations, messages, memories, settings, and pgvector memory embeddings.
+- Database service with Prisma 7 PostgreSQL adapter support.
+- Memory service and API endpoints for list, get, create, update, disable, delete, and vector status.
+- Dashboard Memory page for save/search/filter/disable/delete workflows.
+- Unit tests for memory service logic and secret-like memory rejection.
+
+### Changed
+
+- Approval requests and action logs now use database persistence when `DATABASE_URL` is configured.
+- Local development and tests use an explicit in-memory fallback when no database URL is configured.
+- Dashboard navigation and home state now include Phase 4 Memory.
+
+### Notes
+
+- Semantic vector search is schema-ready but disabled until a real embedding provider is configured.
+- No synthetic embeddings or synthetic AI provider logic was added.
+
 ## [0.4.0] - 2026-07-07
 
 ### Added

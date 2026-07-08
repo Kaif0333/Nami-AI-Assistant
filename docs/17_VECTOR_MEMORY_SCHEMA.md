@@ -46,3 +46,10 @@ User must be able to:
 - Edit memory
 - Delete memory
 - Disable memory type
+
+## Phase 4 implementation
+
+- Prisma schema includes `memories` and `memory_embeddings`.
+- Migration enables `vector` and creates a pgvector-ready `memory_embeddings.embedding` column.
+- Semantic vector retrieval remains disabled until a real embedding provider/model is configured.
+- No synthetic embeddings are generated.

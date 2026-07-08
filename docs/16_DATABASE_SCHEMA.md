@@ -4,6 +4,28 @@
 
 PostgreSQL is preferred. Supabase may be used.
 
+## Phase 4 implementation
+
+The implemented schema lives in:
+
+- `services/api/prisma/schema.prisma`
+- `services/api/prisma/migrations/20260707161000_phase4_database_memory/migration.sql`
+
+Use Prisma for schema/types and organized SQL migrations. The Phase 4 migration
+enables `pgcrypto` and `vector`, then creates:
+
+- `user_profiles`
+- `conversations`
+- `messages`
+- `approval_requests`
+- `action_logs`
+- `memories`
+- `memory_embeddings`
+- `settings`
+
+Future modules may add the remaining tables from this planning document when
+their phases begin.
+
 ## Tables
 
 ### user_profiles

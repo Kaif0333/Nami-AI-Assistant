@@ -40,6 +40,17 @@
 - [x] Add safe demo risky action
 - [x] Add unit tests for policy/services
 
-## Phase 4+
+## Phase 4
+
+- [x] Add Prisma/PostgreSQL schema.
+- [x] Add organized migration for approvals, action logs, memories, and pgvector.
+- [x] Add database service with safe local fallback.
+- [x] Persist approvals/action logs when database is configured.
+- [x] Add memory service and API endpoints.
+- [x] Add Memory dashboard page.
+- [x] Add unit tests for memory service.
+- [x] Update docs and changelog.
+
+## Phase 5+
 
 Continue following roadmap and phase prompts.

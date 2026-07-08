@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 type JsonResponse = {
   status: (statusCode: number) => {
@@ -30,10 +31,21 @@ export class AppHttpExceptionFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
+        : exception instanceof Prisma.PrismaClientKnownRequestError
+          ? HttpStatus.SERVICE_UNAVAILABLE
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const body =
-      exception instanceof HttpException ? exception.getResponse() : undefined;
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : exception instanceof Prisma.PrismaClientKnownRequestError
+          ? {
+              code: "DATABASE_NOT_READY",
+              message:
+                "Database is configured but not ready. Run database migrations and retry.",
+              details: { prismaCode: exception.code }
+            }
+          : undefined;
     const error = this.normalizeError(status, body);
 
     if (status >= 500) {

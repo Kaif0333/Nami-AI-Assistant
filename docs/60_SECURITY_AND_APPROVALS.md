@@ -53,9 +53,10 @@ Allowed statuses:
 - failed
 - cancelled
 
-Phase 3 persistence note:
-- Approval records use an in-memory API service store until the database phase.
-- Database persistence belongs to Phase 4+ when PostgreSQL/Supabase and Prisma are added.
+Phase 4 persistence note:
+- Approval records persist through Prisma/PostgreSQL when `DATABASE_URL` is configured.
+- Local development and tests may use the in-memory fallback when no database URL is configured.
+- The fallback is not production persistence.
 
 ## Blocked actions
 

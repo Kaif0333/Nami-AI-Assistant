@@ -40,3 +40,15 @@ A phase is complete only when:
 - Logs page shows action logs with filters.
 - Safe demo send-email approval does not send any real email.
 - Unit tests cover policy, approvals, and action logs.
+
+## Phase 4 acceptance
+
+- Prisma schema and organized migration exist for PostgreSQL/Supabase.
+- Migration enables pgvector and creates memory embedding storage.
+- Approval requests and action logs can persist to database when configured.
+- Local development has a clear in-memory fallback when no `DATABASE_URL` exists.
+- Memory API supports list, get, create, update, disable, and delete.
+- Memory service rejects obvious secret-like content.
+- Memory dashboard supports saving, searching, filtering, disabling, and deleting memories.
+- Unit tests cover memory service behavior.
+- Docs and changelog are updated.

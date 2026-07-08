@@ -48,30 +48,45 @@ Response:
 }
 ```
 
-### Memory save
+### Memories
 
-`POST /api/memory`
+`GET /api/memories`
+`GET /api/memories/vector-status`
+`GET /api/memories/:id`
+`POST /api/memories`
+`PATCH /api/memories/:id`
+`POST /api/memories/:id/disable`
+`DELETE /api/memories/:id`
 
-Request:
+Create request:
 ```json
 {
-  "type": "profile|project|job|client|preference|conversation",
+  "type": "profile|project|job|client|preference|conversation|document|automation|general",
   "title": "string",
   "content": "string",
-  "tags": []
+  "tags": [],
+  "source": "manual",
+  "sensitivity": "public|personal|sensitive"
 }
 ```
-
-### Memory search
-
-`GET /api/memory/search?q=...`
 
 Response:
 ```json
 {
   "success": true,
   "data": {
-    "results": []
+    "id": "uuid",
+    "type": "general",
+    "title": "string",
+    "content": "string",
+    "tags": [],
+    "source": "manual",
+    "sensitivity": "personal",
+    "status": "active",
+    "hasEmbedding": false,
+    "createdAt": "iso-date",
+    "updatedAt": "iso-date",
+    "metadata": {}
   }
 }
 ```

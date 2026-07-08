@@ -10,9 +10,9 @@ function createService() {
 }
 
 describe("ApprovalsService", () => {
-  it("creates an approval request with sanitized payload", () => {
+  it("creates an approval request with sanitized payload", async () => {
     const service = createService();
-    const approval = service.createApprovalRequest({
+    const approval = await service.createApprovalRequest({
       actionType: "send_email",
       summary: "Send follow-up email",
       payloadPreview: {
@@ -25,34 +25,40 @@ describe("ApprovalsService", () => {
     assert.equal(approval.status, "pending");
     assert.equal(approval.riskLevel, "high");
     assert.equal(approval.payloadPreview.apiKey, "[redacted]");
-    assert.equal(service.getApprovalRequest(approval.id).id, approval.id);
+    assert.equal((await service.getApprovalRequest(approval.id)).id, approval.id);
   });
 
-  it("approves and rejects pending requests", () => {
+  it("approves and rejects pending requests", async () => {
     const approveService = createService();
-    const approval = approveService.createApprovalRequest({
+    const approval = await approveService.createApprovalRequest({
       actionType: "send_message",
       summary: "Send message"
     });
 
-    assert.equal(approveService.approveRequest(approval.id).status, "approved");
+    assert.equal(
+      (await approveService.approveRequest(approval.id)).status,
+      "approved"
+    );
 
     const rejectService = createService();
-    const rejection = rejectService.createApprovalRequest({
+    const rejection = await rejectService.createApprovalRequest({
       actionType: "submit_form",
       summary: "Submit form"
     });
 
-    const rejected = rejectService.rejectRequest(rejection.id, "Not needed");
+    const rejected = await rejectService.rejectRequest(
+      rejection.id,
+      "Not needed"
+    );
     assert.equal(rejected.status, "rejected");
     assert.equal(rejected.errorMessage, "Not needed");
   });
 
-  it("blocks blocked action approval creation", () => {
+  it("blocks blocked action approval creation", async () => {
     const service = createService();
 
-    assert.throws(
-      () =>
+    await assert.rejects(
+      async () =>
         service.createApprovalRequest({
           actionType: "bypass_captcha",
           summary: "Bypass CAPTCHA"

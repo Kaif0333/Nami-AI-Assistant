@@ -5,7 +5,9 @@ import { ActionLogsModule } from "./action-logs/action-logs.module";
 import { ApprovalsModule } from "./approvals/approvals.module";
 import { ChatModule } from "./chat/chat.module";
 import { getEnvFilePaths } from "./config/env";
+import { DatabaseModule } from "./database/database.module";
 import { HealthController } from "./health/health.controller";
+import { MemoriesModule } from "./memories/memories.module";
 
 @Module({
   imports: [
@@ -15,7 +17,9 @@ import { HealthController } from "./health/health.controller";
     }),
     ActionLogsModule,
     ApprovalsModule,
-    ChatModule
+    ChatModule,
+    DatabaseModule,
+    MemoriesModule
   ],
   controllers: [HealthController]
 })

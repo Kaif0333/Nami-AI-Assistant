@@ -64,6 +64,44 @@ export type ActionLog = {
   metadata: Record<string, unknown>;
 };
 
+export type MemoryType =
+  | "profile"
+  | "project"
+  | "job"
+  | "client"
+  | "preference"
+  | "conversation"
+  | "document"
+  | "automation"
+  | "general";
+
+export type MemorySensitivity = "public" | "personal" | "sensitive";
+
+export type MemoryStatus = "active" | "disabled" | "archived";
+
+export type MemoryRecord = {
+  id: string;
+  type: MemoryType;
+  title: string;
+  content: string;
+  tags: string[];
+  source: string;
+  sensitivity: MemorySensitivity;
+  status: MemoryStatus;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+  hasEmbedding: boolean;
+};
+
+export type MemoryVectorStatus = {
+  databaseConfigured: boolean;
+  pgvectorSchemaReady: boolean;
+  embeddingModelConfigured: boolean;
+  semanticSearchEnabled: boolean;
+  message: string;
+};
+
 type ApiSuccess<T> = {
   success: true;
   data: T;
@@ -182,4 +220,76 @@ export async function listActionLogs(filters?: {
   const data = await apiRequest<{ logs: ActionLog[] }>(`/action-logs${query}`);
 
   return data.logs;
+}
+
+export async function listMemories(filters?: {
+  type?: string;
+  sensitivity?: string;
+  status?: string;
+  query?: string;
+  tag?: string;
+}) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.size ? `?${params.toString()}` : "";
+  const data = await apiRequest<{ memories: MemoryRecord[] }>(
+    `/memories${query}`
+  );
+
+  return data.memories;
+}
+
+export async function getMemoryVectorStatus() {
+  return apiRequest<MemoryVectorStatus>("/memories/vector-status");
+}
+
+export async function createMemory(input: {
+  type: MemoryType;
+  title: string;
+  content: string;
+  tags?: string[];
+  source?: string;
+  sensitivity?: MemorySensitivity;
+}) {
+  return apiRequest<MemoryRecord>("/memories", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function updateMemory(
+  id: string,
+  input: Partial<{
+    type: MemoryType;
+    title: string;
+    content: string;
+    tags: string[];
+    source: string;
+    sensitivity: MemorySensitivity;
+    status: MemoryStatus;
+  }>
+) {
+  return apiRequest<MemoryRecord>(`/memories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function disableMemory(id: string) {
+  return apiRequest<MemoryRecord>(`/memories/${id}/disable`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export async function deleteMemory(id: string) {
+  return apiRequest<MemoryRecord>(`/memories/${id}`, {
+    method: "DELETE"
+  });
 }

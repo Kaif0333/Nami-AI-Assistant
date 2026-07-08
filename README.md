@@ -103,6 +103,20 @@ Phase 3 adds reusable safety foundations:
 - Dashboard Logs page with action-log filters.
 - Safe `demo_send_email` approval-flow test with no real email send.
 
-Database persistence is pending for the database phase. Advanced tools, memory,
-voice, n8n, browser/screen control, email/calendar, resume/job workflows, and
-document generation remain locked for later approved phases.
+Advanced tools, voice, n8n, browser/screen control, email/calendar,
+resume/job workflows, and document generation remain locked for later approved
+phases.
+
+## Phase 4 database and memory foundation
+
+Phase 4 adds the first durable data foundation:
+
+- Prisma 7 schema and migration under `services/api/prisma`.
+- PostgreSQL/Supabase-ready models for approvals, action logs, conversations, messages, memories, settings, and pgvector embeddings.
+- Database-backed approvals and action logs when `DATABASE_URL` is configured.
+- Explicit in-memory fallback for local development/tests without a database URL.
+- Memory API for save, search, update, disable, and delete.
+- Dashboard Memory page connected to the local API.
+
+Semantic vector search is schema-ready but remains disabled until a real embedding
+provider/model is configured. No synthetic embeddings are generated.

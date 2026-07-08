@@ -9,9 +9,9 @@ function createService() {
 }
 
 describe("ActionLogsService", () => {
-  it("creates an action log with sanitized input", () => {
+  it("creates an action log with sanitized input", async () => {
     const service = createService();
-    const log = service.createActionLog({
+    const log = await service.createActionLog({
       actionType: "send_email",
       summary: "Send email",
       status: "approval_required",
@@ -26,18 +26,18 @@ describe("ActionLogsService", () => {
     assert.equal(log.inputPreview.token, "[redacted]");
   });
 
-  it("updates logs linked to an approval", () => {
+  it("updates logs linked to an approval", async () => {
     const service = createService();
-    const log = service.createActionLog({
+    const log = await service.createActionLog({
       approvalId: "approval-1",
       actionType: "send_message",
       summary: "Send message",
       status: "approval_required"
     });
 
-    const updated = service.markApprovalLogs("approval-1", "approved");
+    const updated = await service.markApprovalLogs("approval-1", "approved");
 
     assert.equal(updated.length, 1);
-    assert.equal(service.getActionLog(log.id).status, "approved");
+    assert.equal((await service.getActionLog(log.id)).status, "approved");
   });
 });

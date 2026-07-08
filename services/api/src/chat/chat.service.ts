@@ -43,7 +43,7 @@ export class ChatService {
     const detectedAction = this.policy.detectCommandAction(message);
 
     if (detectedAction.matched && detectedAction.blocked) {
-      this.actionLogsService.createActionLog({
+      await this.actionLogsService.createActionLog({
         commandId: conversationId,
         actionType: detectedAction.actionType,
         summary: "Blocked chat-requested action",
@@ -72,7 +72,7 @@ export class ChatService {
     }
 
     if (detectedAction.matched && detectedAction.approvalRequired) {
-      const approval = this.approvalsService.createApprovalRequest({
+      const approval = await this.approvalsService.createApprovalRequest({
         actionType: detectedAction.actionType,
         summary: `Approval required: ${detectedAction.actionType.replaceAll("_", " ")}`,
         description:
@@ -87,7 +87,7 @@ export class ChatService {
         }
       });
 
-      this.actionLogsService.createActionLog({
+      await this.actionLogsService.createActionLog({
         commandId: conversationId,
         approvalId: approval.id,
         actionType: approval.actionType,

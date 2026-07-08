@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  BrainCircuit,
   Bot,
   CalendarCheck,
   CheckCircle2,
@@ -29,6 +30,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { title: "Home", href: "/", icon: Home },
   { title: "Chat", href: "/chat", icon: MessageSquareText },
+  { title: "Memory", href: "/memory", icon: BrainCircuit },
   { title: "Tasks", href: "/tasks", icon: ListChecks },
   { title: "Projects", href: "/projects", icon: SquareTerminal },
   { title: "Automations", href: "/automations", icon: Workflow },
@@ -38,25 +40,25 @@ export const navItems: NavItem[] = [
 ];
 
 export const systemStats = [
-  { label: "Build phase", value: "Phase 3", detail: "Approvals + logs" },
-  { label: "Risk mode", value: "Gated", detail: "Approval queue active" },
+  { label: "Build phase", value: "Phase 4", detail: "Database + memory" },
+  { label: "Risk mode", value: "Gated", detail: "Approval queue persisted" },
   { label: "Runtime", value: "Local", detail: "API + dashboard" }
 ];
 
 export const todayTasks = [
   {
-    title: "Build approval queue",
-    context: "Risk-gated actions",
+    title: "Add database foundation",
+    context: "Prisma + PostgreSQL",
     status: "In progress"
   },
   {
-    title: "Add audit trail",
-    context: "Action logs",
+    title: "Create memory center",
+    context: "Save/search memories",
     status: "Queued"
   },
   {
-    title: "Document Phase 3 checks",
-    context: "Safety and logging",
+    title: "Prepare pgvector schema",
+    context: "Semantic memory",
     status: "Queued"
   }
 ];
@@ -122,18 +124,18 @@ export const projects = [
   {
     name: "Nami dashboard",
     health: "Active",
-    progress: "Phase 3",
+    progress: "Phase 4",
     icon: Gauge
   },
   {
     name: "Agent runtime",
     health: "Planned",
-    progress: "Phase 3+",
+    progress: "Phase 4+",
     icon: Bot
   },
   {
     name: "Memory service",
-    health: "Planned",
+    health: "Active",
     progress: "Phase 4",
     icon: Network
   }

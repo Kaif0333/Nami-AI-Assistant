@@ -11,7 +11,7 @@ export class ActionLogsController {
   ) {}
 
   @Get()
-  listActionLogs(
+  async listActionLogs(
     @Query("status") status?: string,
     @Query("riskLevel") riskLevel?: string,
     @Query("actionType") actionType?: string
@@ -19,7 +19,7 @@ export class ActionLogsController {
     return {
       success: true,
       data: {
-        logs: this.actionLogsService.listActionLogs({
+        logs: await this.actionLogsService.listActionLogs({
           status: status as never,
           riskLevel: riskLevel as never,
           actionType
@@ -29,18 +29,18 @@ export class ActionLogsController {
   }
 
   @Get(":id")
-  getActionLog(@Param("id") id: string) {
+  async getActionLog(@Param("id") id: string) {
     return {
       success: true,
-      data: this.actionLogsService.getActionLog(id)
+      data: await this.actionLogsService.getActionLog(id)
     };
   }
 
   @Post()
-  createActionLog(@Body() body: CreateActionLogDto) {
+  async createActionLog(@Body() body: CreateActionLogDto) {
     return {
       success: true,
-      data: this.actionLogsService.createActionLog(body)
+      data: await this.actionLogsService.createActionLog(body)
     };
   }
 }
