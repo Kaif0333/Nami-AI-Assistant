@@ -26,6 +26,8 @@
 ### Chat
 
 `POST /api/chat`
+`GET /api/chat/conversations`
+`GET /api/chat/conversations/:id`
 
 Request:
 ```json
@@ -43,7 +45,61 @@ Response:
   "data": {
     "reply": "string",
     "conversationId": "string",
-    "actions": []
+    "actions": [],
+    "modelRoute": {
+      "taskProfile": "fast|coding|reasoning|research|local",
+      "provider": "string",
+      "model": "string"
+    }
+  }
+}
+```
+
+Conversation list response:
+```json
+{
+  "success": true,
+  "data": {
+    "conversations": [
+      {
+        "id": "uuid",
+        "title": "string",
+        "messageCount": 2,
+        "lastMessagePreview": "string",
+        "createdAt": "iso-date",
+        "updatedAt": "iso-date",
+        "metadata": {
+          "taskProfile": "fast|coding|reasoning|research|local",
+          "provider": "string",
+          "model": "string"
+        }
+      }
+    ]
+  }
+}
+```
+
+Assistant message metadata may include the model route used for that turn. Nami
+uses that metadata to keep continuation prompts on the right route when a saved
+conversation is reopened.
+
+Conversation detail response:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "title": "string",
+    "messages": [
+      {
+        "id": "uuid",
+        "conversationId": "uuid",
+        "role": "user|assistant",
+        "content": "string",
+        "createdAt": "iso-date",
+        "metadata": {}
+      }
+    ]
   }
 }
 ```

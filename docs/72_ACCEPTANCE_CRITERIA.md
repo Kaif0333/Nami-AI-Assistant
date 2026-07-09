@@ -50,5 +50,7 @@ A phase is complete only when:
 - Memory API supports list, get, create, update, disable, and delete.
 - Memory service rejects obvious secret-like content.
 - Memory dashboard supports saving, searching, filtering, disabling, and deleting memories.
+- Chat conversations and messages persist to database when configured.
+- Chat dashboard can list and reopen saved conversations.
 - Unit tests cover memory service behavior.
 - Docs and changelog are updated.

@@ -1,5 +1,23 @@
 # 99 — Changelog
 
+## [0.5.6] - 2026-07-09
+
+### Added
+
+- Chat conversations now persist user and assistant messages to the existing
+  `conversations` and `messages` tables when the database is configured.
+- Chat API now exposes conversation list and detail endpoints.
+- Chat dashboard now lists saved conversations and can reopen prior message
+  history from the sidebar.
+- Assistant message metadata now records the provider, model, and task profile
+  used for the turn so continuation prompts can keep the right route.
+- Unit tests cover fallback chat conversation storage and continuation context.
+
+### Notes
+
+- In-memory chat history remains available only as a no-database fallback for
+  tests/local development without `DATABASE_URL`.
+
 ## [0.5.5] - 2026-07-09
 
 ### Added

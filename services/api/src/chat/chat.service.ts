@@ -1,13 +1,32 @@
-import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional
+} from "@nestjs/common";
+import type { Conversation, Message, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import { ActionLogsService } from "../action-logs/action-logs.service";
 import { AiProviderService } from "../ai/ai-provider.service";
-import { AiChatMessage, AiTaskProfile } from "../ai/ai-provider.types";
+import {
+  AiChatMessage,
+  AiTaskProfile,
+  aiTaskProfiles
+} from "../ai/ai-provider.types";
 import { classifyAiTaskProfile } from "../ai/model-router";
 import { ApprovalsService } from "../approvals/approvals.service";
+import { DatabaseService } from "../database/database.service";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
-import { ChatResponseData } from "./chat.types";
+import {
+  ChatConversationDetail,
+  ChatConversationSummary,
+  ChatMessageRecord,
+  ChatResponseData,
+  StoredChatRole
+} from "./chat.types";
 import { ChatRequestDto } from "./dto/chat-request.dto";
 import { NAMI_CHAT_INSTRUCTIONS } from "./nami-chat.prompt";
 
@@ -19,6 +38,7 @@ const maxAutoContinuationSteps = 6;
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
   private readonly conversations = new Map<string, AiChatMessage[]>();
+  private readonly conversationDetails = new Map<string, ChatConversationDetail>();
   private readonly conversationTaskProfiles = new Map<string, AiTaskProfile>();
 
   constructor(
@@ -29,12 +49,15 @@ export class ChatService {
     @Inject(ApprovalsService)
     private readonly approvalsService: ApprovalsService,
     @Inject(ActionLogsService)
-    private readonly actionLogsService: ActionLogsService
+    private readonly actionLogsService: ActionLogsService,
+    @Optional()
+    @Inject(DatabaseService)
+    private readonly database?: DatabaseService
   ) {}
 
   async sendMessage(input: ChatRequestDto): Promise<ChatResponseData> {
     const message = input.message.trim();
-    const conversationId = input.conversationId?.trim() || randomUUID();
+    const conversationId = this.resolveConversationId(input.conversationId);
 
     if (!message) {
       throw new BadRequestException({
@@ -68,7 +91,7 @@ export class ChatService {
       const reply =
         "This action is blocked by Nami's safety policy and was not executed.";
 
-      this.recordConversationTurn(conversationId, message, reply);
+      await this.recordConversationTurn(conversationId, message, reply);
 
       return {
         reply,
@@ -116,7 +139,7 @@ export class ChatService {
       const reply =
         "Approval request created. Review it in Approvals before any action can run.";
 
-      this.recordConversationTurn(conversationId, message, reply);
+      await this.recordConversationTurn(conversationId, message, reply);
 
       return {
         reply,
@@ -133,13 +156,14 @@ export class ChatService {
     }
 
     const isContinuation = this.isContinuationRequest(message);
-    const taskProfile =
-      isContinuation && this.conversationTaskProfiles.has(conversationId)
-        ? this.conversationTaskProfiles.get(conversationId)!
-        : classifyAiTaskProfile(message);
+    const taskProfile = await this.resolveTaskProfile(
+      conversationId,
+      message,
+      isContinuation
+    );
     const providerMessage = this.buildProviderMessage(message, isContinuation);
     const messages = [
-      ...this.getConversationHistory(conversationId),
+      ...(await this.getConversationHistory(conversationId)),
       { role: "user" as const, content: providerMessage }
     ];
     const response = await this.generateCompleteResponse({
@@ -148,7 +172,13 @@ export class ChatService {
       taskProfile
     });
 
-    this.recordConversationTurn(conversationId, message, response.text);
+    await this.recordConversationTurn(conversationId, message, response.text, {
+      finishReason: response.finishReason,
+      model: response.model,
+      provider: response.provider,
+      taskProfile: response.taskProfile,
+      wasTruncated: response.wasTruncated
+    });
     this.conversationTaskProfiles.set(conversationId, response.taskProfile);
 
     this.logger.log(
@@ -169,22 +199,142 @@ export class ChatService {
     };
   }
 
-  private getConversationHistory(conversationId: string) {
+  async listConversations(): Promise<ChatConversationSummary[]> {
+    if (this.database?.client) {
+      const conversations = await this.database.client.conversation.findMany({
+        include: {
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1
+          }
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50
+      });
+
+      return conversations.map((conversation) =>
+        this.toConversationSummary(conversation)
+      );
+    }
+
+    return Array.from(this.conversationDetails.values())
+      .map((conversation) => this.toInMemorySummary(conversation))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  async getConversation(conversationId: string): Promise<ChatConversationDetail> {
+    if (this.database?.client) {
+      const conversation = await this.database.client.conversation.findUnique({
+        where: { id: conversationId },
+        include: {
+          _count: { select: { messages: true } },
+          messages: { orderBy: { createdAt: "asc" } }
+        }
+      });
+
+      if (!conversation) {
+        throw this.notFound(conversationId);
+      }
+
+      return this.toConversationDetail(conversation);
+    }
+
+    const conversation = this.conversationDetails.get(conversationId);
+
+    if (!conversation) {
+      throw this.notFound(conversationId);
+    }
+
+    return conversation;
+  }
+
+  private async getConversationHistory(conversationId: string) {
+    if (this.database?.client) {
+      const messages = await this.database.client.message.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { content: true, role: true },
+        take: maxConversationMessages,
+        where: { conversationId }
+      });
+
+      return this.pruneConversationHistory(
+        messages
+          .reverse()
+          .filter((message) => isStoredChatRole(message.role))
+          .map((message) => ({
+            role: message.role as StoredChatRole,
+            content: message.content
+          }))
+      );
+    }
+
     return this.conversations.get(conversationId) ?? [];
   }
 
-  private recordConversationTurn(
+  private async recordConversationTurn(
     conversationId: string,
     userContent: string,
-    assistantContent: string
+    assistantContent: string,
+    assistantMetadata: Record<string, unknown> = {}
   ) {
+    const now = new Date();
+    const userMessage: ChatMessageRecord = {
+      id: randomUUID(),
+      conversationId,
+      role: "user",
+      content: userContent,
+      createdAt: now.toISOString(),
+      metadata: {}
+    };
+    const assistantMessage: ChatMessageRecord = {
+      id: randomUUID(),
+      conversationId,
+      role: "assistant",
+      content: assistantContent,
+      createdAt: new Date(now.getTime() + 1).toISOString(),
+      metadata: compactMetadata(assistantMetadata)
+    };
+    const currentHistory = await this.getConversationHistory(conversationId);
     const history = [
-      ...this.getConversationHistory(conversationId),
+      ...currentHistory,
       { role: "user" as const, content: userContent },
       { role: "assistant" as const, content: assistantContent }
     ];
 
     this.conversations.set(conversationId, this.pruneConversationHistory(history));
+
+    if (this.database?.client) {
+      await this.database.client.$transaction(async (prisma) => {
+        await prisma.conversation.upsert({
+          create: {
+            id: conversationId,
+            title: createConversationTitle(userContent),
+            metadata: {
+              persistence: "database",
+              source: "chat"
+            },
+            createdAt: now,
+            updatedAt: now
+          },
+          update: {
+            updatedAt: now
+          },
+          where: { id: conversationId }
+        });
+
+        await prisma.message.createMany({
+          data: [
+            this.toMessageCreateInput(userMessage),
+            this.toMessageCreateInput(assistantMessage)
+          ]
+        });
+      });
+
+      return;
+    }
+
+    this.recordInMemoryConversation(conversationId, userMessage, assistantMessage);
   }
 
   private pruneConversationHistory(messages: AiChatMessage[]) {
@@ -222,6 +372,59 @@ export class ChatService {
       "If the previous response was code, continue the same file/code block and close any unfinished blocks.",
       `User message: ${message}`
     ].join("\n");
+  }
+
+  private async resolveTaskProfile(
+    conversationId: string,
+    message: string,
+    isContinuation: boolean
+  ) {
+    if (!isContinuation) {
+      return classifyAiTaskProfile(message);
+    }
+
+    const cachedTaskProfile = this.conversationTaskProfiles.get(conversationId);
+
+    if (cachedTaskProfile) {
+      return cachedTaskProfile;
+    }
+
+    const storedTaskProfile =
+      await this.getStoredConversationTaskProfile(conversationId);
+
+    if (storedTaskProfile) {
+      this.conversationTaskProfiles.set(conversationId, storedTaskProfile);
+      return storedTaskProfile;
+    }
+
+    return classifyAiTaskProfile(message);
+  }
+
+  private async getStoredConversationTaskProfile(
+    conversationId: string
+  ): Promise<AiTaskProfile | undefined> {
+    if (this.database?.client) {
+      const message = await this.database.client.message.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { metadata: true },
+        where: { conversationId, role: "assistant" }
+      });
+      const metadata = asRecord(message?.metadata);
+
+      return isAiTaskProfile(metadata.taskProfile)
+        ? metadata.taskProfile
+        : undefined;
+    }
+
+    const conversation = this.conversationDetails.get(conversationId);
+    const latestAssistantMessage = [...(conversation?.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    const metadata = asRecord(latestAssistantMessage?.metadata);
+
+    return isAiTaskProfile(metadata.taskProfile)
+      ? metadata.taskProfile
+      : undefined;
   }
 
   private async generateCompleteResponse(input: {
@@ -263,4 +466,157 @@ export class ChatService {
       wasTruncated: response.wasTruncated
     };
   }
+
+  private resolveConversationId(conversationId?: string) {
+    const trimmed = conversationId?.trim();
+
+    return trimmed && isUuid(trimmed) ? trimmed : randomUUID();
+  }
+
+  private toMessageCreateInput(message: ChatMessageRecord) {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      role: message.role,
+      content: message.content,
+      createdAt: new Date(message.createdAt),
+      metadata: message.metadata as Prisma.InputJsonObject
+    };
+  }
+
+  private recordInMemoryConversation(
+    conversationId: string,
+    userMessage: ChatMessageRecord,
+    assistantMessage: ChatMessageRecord
+  ) {
+    const current = this.conversationDetails.get(conversationId);
+    const now = assistantMessage.createdAt;
+    const messages = [...(current?.messages ?? []), userMessage, assistantMessage];
+    const conversation: ChatConversationDetail = {
+      id: conversationId,
+      title: current?.title ?? createConversationTitle(userMessage.content),
+      createdAt: current?.createdAt ?? userMessage.createdAt,
+      updatedAt: now,
+      messageCount: messages.length,
+      lastMessagePreview: createPreview(assistantMessage.content),
+      metadata: {
+        persistence: "in_memory_fallback_no_database_url",
+        source: "chat"
+      },
+      messages
+    };
+
+    this.conversationDetails.set(conversationId, conversation);
+  }
+
+  private toConversationSummary(
+    row: Conversation & {
+      _count: { messages: number };
+      messages: Message[];
+    }
+  ): ChatConversationSummary {
+    return {
+      id: row.id,
+      title: row.title,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      messageCount: row._count.messages,
+      lastMessagePreview: createPreview(row.messages[0]?.content ?? ""),
+      metadata: asRecord(row.metadata)
+    };
+  }
+
+  private toConversationDetail(
+    row: Conversation & {
+      _count: { messages: number };
+      messages: Message[];
+    }
+  ): ChatConversationDetail {
+    const messages = row.messages.map((message) => this.toMessageRecord(message));
+
+    return {
+      id: row.id,
+      title: row.title,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      messageCount: row._count.messages,
+      lastMessagePreview: createPreview(messages.at(-1)?.content ?? ""),
+      metadata: asRecord(row.metadata),
+      messages
+    };
+  }
+
+  private toInMemorySummary(
+    conversation: ChatConversationDetail
+  ): ChatConversationSummary {
+    const { messages: _messages, ...summary } = conversation;
+
+    return summary;
+  }
+
+  private toMessageRecord(row: Message): ChatMessageRecord {
+    return {
+      id: row.id,
+      conversationId: row.conversationId,
+      role: isStoredChatRole(row.role) ? row.role : "assistant",
+      content: row.content,
+      createdAt: row.createdAt.toISOString(),
+      metadata: asRecord(row.metadata)
+    };
+  }
+
+  private notFound(conversationId: string) {
+    return new NotFoundException({
+      code: "CHAT_CONVERSATION_NOT_FOUND",
+      message: "Chat conversation was not found.",
+      details: { conversationId }
+    });
+  }
+}
+
+function createConversationTitle(message: string) {
+  const normalized = message.replaceAll(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "New conversation";
+  }
+
+  return normalized.length > 60 ? `${normalized.slice(0, 57)}...` : normalized;
+}
+
+function createPreview(message: string) {
+  const normalized = message.replaceAll(/\s+/g, " ").trim();
+
+  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+}
+
+function isStoredChatRole(role: string): role is StoredChatRole {
+  return role === "user" || role === "assistant";
+}
+
+function isAiTaskProfile(value: unknown): value is AiTaskProfile {
+  return (
+    typeof value === "string" &&
+    aiTaskProfiles.includes(value as AiTaskProfile)
+  );
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function compactMetadata(metadata: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined)
+  );
 }

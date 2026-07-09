@@ -1,6 +1,14 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   AlertTriangle,
   Bot,
@@ -16,7 +24,13 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getApiBaseUrl, sendChatMessage } from "@/lib/nami-api";
+import {
+  getApiBaseUrl,
+  getChatConversation,
+  listChatConversations,
+  sendChatMessage
+} from "@/lib/nami-api";
+import type { ChatConversationSummary } from "@/lib/nami-api";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -69,6 +83,25 @@ function formatFileSize(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function toUiMessage(message: {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}): ChatMessage {
+  return {
+    id: message.id,
+    role: message.role === "user" ? "Kaif" : "Nami",
+    text: message.content
+  };
+}
+
+function formatConversationTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export default function ChatPage() {
   const apiUrl = useMemo(() => getApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +109,11 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string>();
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [chatConversations, setChatConversations] = useState<
+    ChatConversationSummary[]
+  >([]);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([
     {
@@ -87,6 +124,38 @@ export default function ChatPage() {
     }
   ]);
 
+  const refreshConversations = useCallback(async () => {
+    try {
+      setIsLoadingConversations(true);
+      setChatConversations(await listChatConversations());
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load chat history.";
+
+      setTimeline((current) => [
+        {
+          id: createId(),
+          label: "Chat history load failed",
+          detail: message,
+          status: "error"
+        },
+        ...current
+      ]);
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void refreshConversations();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [refreshConversations]);
+
   useEffect(() => {
     const container = messagesContainerRef.current;
 
@@ -94,6 +163,54 @@ export default function ChatPage() {
       container.scrollTop = container.scrollHeight;
     }
   }, [messages]);
+
+  async function handleSelectConversation(id: string) {
+    if (isSending || id === conversationId) {
+      return;
+    }
+
+    try {
+      const conversation = await getChatConversation(id);
+      setAttachments([]);
+      setConversationId(conversation.id);
+      setMessages(conversation.messages.map(toUiMessage));
+      setTimeline((current) => [
+        {
+          id: createId(),
+          label: "Conversation opened",
+          detail: conversation.title,
+          status: "ok"
+        },
+        ...current
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to open conversation.";
+
+      setTimeline((current) => [
+        {
+          id: createId(),
+          label: "Conversation open failed",
+          detail: message,
+          status: "error"
+        },
+        ...current
+      ]);
+    }
+  }
+
+  function handleNewConversation() {
+    if (isSending) {
+      return;
+    }
+
+    setAttachments([]);
+    setConversationId(undefined);
+    setDraft("");
+    setMessages(initialMessages);
+  }
 
   function handleAttachmentSelection(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -186,6 +303,7 @@ export default function ChatPage() {
         },
         ...current.filter((item) => item.id !== requestEventId)
       ]);
+      void refreshConversations();
     } catch (error) {
       const message =
         error instanceof Error
@@ -222,23 +340,46 @@ export default function ChatPage() {
     >
       <div className="grid min-h-[34rem] gap-4 xl:grid-cols-[18rem_1fr_20rem]">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-3">
             <CardTitle>Conversations</CardTitle>
+            <Button
+              disabled={isSending}
+              onClick={handleNewConversation}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              New
+            </Button>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <button
-              className="rounded-lg border border-border bg-secondary px-3 py-2 text-left text-sm font-medium text-foreground"
-              type="button"
-            >
-              Nami live chat
-            </button>
-            {["Build planning", "Safety notes", "Project ideas"].map((item) => (
+            {isLoadingConversations ? (
+              <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
+                Loading chats...
+              </div>
+            ) : null}
+            {!isLoadingConversations && chatConversations.length === 0 ? (
+              <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
+                No saved chats yet.
+              </div>
+            ) : null}
+            {chatConversations.map((conversation) => (
               <button
-                key={item}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+                className={cn(
+                  "rounded-lg border border-border bg-background px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent",
+                  conversation.id === conversationId &&
+                    "bg-secondary font-medium hover:bg-secondary"
+                )}
+                disabled={isSending}
+                key={conversation.id}
+                onClick={() => void handleSelectConversation(conversation.id)}
                 type="button"
               >
-                {item}
+                <span className="block truncate">{conversation.title}</span>
+                <span className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{conversation.messageCount} messages</span>
+                  <span>{formatConversationTime(conversation.updatedAt)}</span>
+                </span>
               </button>
             ))}
           </CardContent>

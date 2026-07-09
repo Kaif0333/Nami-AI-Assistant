@@ -15,6 +15,29 @@ export type ChatResponseData = {
   wasTruncated?: boolean;
 };
 
+export type ChatStoredMessage = {
+  id: string;
+  conversationId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ChatConversationSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessagePreview: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ChatConversationDetail = ChatConversationSummary & {
+  messages: ChatStoredMessage[];
+};
+
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 
 export type ApprovalStatus =
@@ -166,6 +189,18 @@ export async function sendChatMessage(input: {
       mode: "chat"
     })
   });
+}
+
+export async function listChatConversations() {
+  const data = await apiRequest<{ conversations: ChatConversationSummary[] }>(
+    "/chat/conversations"
+  );
+
+  return data.conversations;
+}
+
+export async function getChatConversation(id: string) {
+  return apiRequest<ChatConversationDetail>(`/chat/conversations/${id}`);
 }
 
 export async function listApprovals(filters?: {

@@ -6,6 +6,8 @@ NestJS backend API for Nami.
 
 - `GET /api/health`
 - `POST /api/chat`
+- `GET /api/chat/conversations`
+- `GET /api/chat/conversations/:id`
 - `GET /api/approvals`
 - `GET /api/approvals/:id`
 - `POST /api/approvals`
@@ -23,6 +25,7 @@ NestJS backend API for Nami.
 - `POST /api/memories/:id/disable`
 - `DELETE /api/memories/:id`
 - Backend-only real AI provider abstraction
+- Chat conversation/message persistence when `DATABASE_URL` is configured
 - Safe action policy
 - Prisma/PostgreSQL persistence when `DATABASE_URL` is configured
 - In-memory fallback for local development/tests without a database URL
