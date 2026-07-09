@@ -33,12 +33,32 @@ OpenRouter free coding candidates such as `qwen/qwen3-coder:free` remain useful
 backup options, but local testing saw upstream rate limits. Do not make them the
 default route until they are reliable for the configured account.
 
+## Fallback routing
+
+Nami supports real-provider fallback chains for reliability.
+
+```text
+AI_CODING_FALLBACKS=openrouter:google/gemini-3.1-flash-lite,gemini:gemini-3.1-flash-lite
+AI_REASONING_FALLBACKS=openrouter:google/gemini-3.1-flash-lite,gemini:gemini-3.1-flash-lite
+AI_FALLBACKS=
+```
+
+Rules:
+
+- Fallback entries use `provider:model`.
+- Profile-specific fallback variables win over `AI_FALLBACKS`.
+- Fallbacks are used only for real providers.
+- If the primary route is unavailable, Nami retries the next configured route.
+- If the primary route reports a length stop, Nami retries on the next
+  configured route before returning an incomplete answer.
+- If every real route fails, Nami returns the provider unavailable error.
+
 ## Rules
 
 - Do not use expensive model for every trivial task.
 - Use transcripts before video-frame analysis when possible.
 - Use screen vision only when needed.
 - Track usage later.
-- If a selected provider/model is unavailable, show the provider unavailable
-  error instead of returning a fake response.
+- If a selected provider/model and its real fallbacks are unavailable, show the
+  provider unavailable error instead of returning a fake response.
 - Actual external actions remain behind approval gates regardless of model.

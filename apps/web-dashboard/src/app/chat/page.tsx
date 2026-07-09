@@ -1,12 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bot,
   CheckCircle2,
   Loader2,
+  Paperclip,
   SendHorizontal,
+  X,
   UserRound
 } from "lucide-react";
 
@@ -22,6 +24,7 @@ type ChatMessage = {
   role: "Nami" | "Kaif";
   text: string;
   tone?: "normal" | "error";
+  wasTruncated?: boolean;
 };
 
 type TimelineEvent = {
@@ -29,6 +32,13 @@ type TimelineEvent = {
   label: string;
   detail: string;
   status: "ok" | "pending" | "error";
+};
+
+type PendingAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
 };
 
 const initialMessages: ChatMessage[] = [
@@ -47,11 +57,26 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function formatFileSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 1024)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ChatPage() {
   const apiUrl = useMemo(() => getApiBaseUrl(), []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string>();
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([
     {
@@ -62,11 +87,51 @@ export default function ChatPage() {
     }
   ]);
 
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages]);
+
+  function handleAttachmentSelection(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+
+    if (!files.length) {
+      return;
+    }
+
+    setAttachments((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: createId(),
+        name: file.name,
+        size: file.size,
+        type: file.type || "unknown"
+      }))
+    ]);
+    setTimeline((current) => [
+      {
+        id: createId(),
+        label: "Files selected",
+        detail: "File reading is locked until the document phase. Nothing was uploaded.",
+        status: "pending"
+      },
+      ...current
+    ]);
+    event.target.value = "";
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((current) => current.filter((file) => file.id !== id));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = draft.trim();
 
-    if (!message || isSending) {
+    if (!message || isSending || attachments.length > 0) {
       return;
     }
 
@@ -102,7 +167,8 @@ export default function ChatPage() {
         {
           id: createId(),
           role: "Nami",
-          text: response.reply
+          text: response.reply,
+          wasTruncated: response.wasTruncated
         }
       ]);
       setTimeline((current) => [
@@ -110,7 +176,9 @@ export default function ChatPage() {
           id: createId(),
           label: "Nami response received",
           detail: response.modelRoute
-            ? `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}`
+            ? `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}${
+                response.wasTruncated ? " (provider length stop)" : ""
+              }`
             : response.actions.length
               ? `${response.actions.length} action previews`
               : "No actions requested",
@@ -184,7 +252,10 @@ export default function ChatPage() {
             </Badge>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-4">
-            <div className="flex max-h-[28rem] flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            <div
+              className="flex max-h-[28rem] flex-1 flex-col gap-3 overflow-y-auto pr-1"
+              ref={messagesContainerRef}
+            >
               {messages.map((message) => {
                 const Icon = message.role === "Nami" ? Bot : UserRound;
                 const isError = message.tone === "error";
@@ -214,6 +285,12 @@ export default function ChatPage() {
                       <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
                         {message.text}
                       </p>
+                      {message.wasTruncated ? (
+                        <p className="mt-2 text-xs font-medium text-destructive">
+                          Provider stopped because of length after automatic
+                          continuation. Send continue to keep going.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -221,6 +298,14 @@ export default function ChatPage() {
             </div>
 
             <form className="flex flex-col gap-2" onSubmit={handleSubmit}>
+              <input
+                accept=".txt,.md,.pdf,.doc,.docx,image/*"
+                className="hidden"
+                multiple
+                onChange={handleAttachmentSelection}
+                ref={fileInputRef}
+                type="file"
+              />
               <textarea
                 aria-label="Message Nami"
                 className="min-h-24 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -229,20 +314,62 @@ export default function ChatPage() {
                 placeholder="Ask Nami something safe..."
                 value={draft}
               />
+              {attachments.length > 0 ? (
+                <div className="rounded-lg border border-dashed border-border bg-secondary/50 p-3">
+                  <div className="text-xs font-medium text-foreground">
+                    Files are selected but not uploaded yet. File reading is
+                    locked until the document phase.
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {attachments.map((file) => (
+                      <div
+                        className="flex max-w-full items-center gap-2 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
+                        key={file.id}
+                      >
+                        <Paperclip aria-hidden className="size-3 shrink-0" />
+                        <span className="truncate">{file.name}</span>
+                        <span className="shrink-0">{formatFileSize(file.size)}</span>
+                        <button
+                          aria-label={`Remove ${file.name}`}
+                          className="rounded-sm text-foreground hover:text-primary"
+                          onClick={() => removeAttachment(file.id)}
+                          type="button"
+                        >
+                          <X aria-hidden className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
                   {conversationId
                     ? `Conversation ${conversationId.slice(0, 8)}`
                     : "New conversation"}
                 </p>
-                <Button disabled={!draft.trim() || isSending} type="submit">
-                  {isSending ? (
-                    <Loader2 aria-hidden className="size-4 animate-spin" />
-                  ) : (
-                    <SendHorizontal aria-hidden className="size-4" />
-                  )}
-                  Send
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    aria-label="Attach files"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach files"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Paperclip aria-hidden className="size-4" />
+                  </Button>
+                  <Button
+                    disabled={!draft.trim() || isSending || attachments.length > 0}
+                    type="submit"
+                  >
+                    {isSending ? (
+                      <Loader2 aria-hidden className="size-4 animate-spin" />
+                    ) : (
+                      <SendHorizontal aria-hidden className="size-4" />
+                    )}
+                    Send
+                  </Button>
+                </div>
               </div>
             </form>
           </CardContent>

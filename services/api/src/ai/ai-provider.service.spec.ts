@@ -45,6 +45,7 @@ describe("AiProviderService", () => {
       "https://api.groq.com/openai/v1/chat/completions"
     );
     assert.equal(JSON.parse(requestedBody).model, "llama-3.1-8b-instant");
+    assert.equal(JSON.parse(requestedBody).max_tokens, undefined);
     assert.equal(result.provider, "groq");
     assert.equal(result.text, "Groq is online.");
     assert.equal(result.taskProfile, "fast");
@@ -82,6 +83,164 @@ describe("AiProviderService", () => {
     assert.equal(result.provider, "groq");
     assert.equal(result.model, "llama-3.3-70b-versatile");
     assert.equal(result.taskProfile, "coding");
+  });
+
+  it("uses configured max output tokens only when explicitly set", async () => {
+    let requestedBody = "";
+
+    globalThis.fetch = async (_url, init) => {
+      requestedBody = String(init?.body);
+
+      return jsonResponse({
+        choices: [{ message: { content: "Long coding output is online." } }],
+        model: "llama-3.3-70b-versatile"
+      });
+    };
+
+    const service = new AiProviderService(
+      configService({
+        AI_CODING_MAX_OUTPUT_TOKENS: "4096",
+        AI_CODING_MODEL: "llama-3.3-70b-versatile",
+        AI_CODING_PROVIDER: "groq",
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "test-groq-key"
+      })
+    );
+
+    await service.generateText({
+      input: "Build a complete page.",
+      instructions: "You are Nami.",
+      taskProfile: "coding"
+    });
+
+    assert.equal(JSON.parse(requestedBody).max_tokens, 4096);
+  });
+
+  it("sends conversation history to chat providers", async () => {
+    let requestedBody = "";
+
+    globalThis.fetch = async (_url, init) => {
+      requestedBody = String(init?.body);
+
+      return jsonResponse({
+        choices: [{ message: { content: "Continuation is online." } }],
+        model: "llama-3.1-8b-instant"
+      });
+    };
+
+    const service = new AiProviderService(
+      configService({
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "test-groq-key",
+        GROQ_MODEL: "llama-3.1-8b-instant"
+      })
+    );
+
+    await service.generateText({
+      input: "continue",
+      instructions: "You are Nami.",
+      messages: [
+        { role: "user", content: "Write a page." },
+        { role: "assistant", content: "Here is the HTML..." },
+        { role: "user", content: "continue" }
+      ]
+    });
+
+    const body = JSON.parse(requestedBody);
+
+    assert.deepEqual(
+      body.messages.map((message: { role: string }) => message.role),
+      ["system", "user", "assistant", "user"]
+    );
+    assert.equal(body.messages[2].content, "Here is the HTML...");
+  });
+
+  it("falls back when the primary route is unavailable", async () => {
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+
+      if (String(url).includes("api.groq.com")) {
+        return jsonResponse({ error: "unavailable" }, 503);
+      }
+
+      return jsonResponse({
+        choices: [{ message: { content: "Fallback is online." } }],
+        model: "google/gemini-3.1-flash-lite"
+      });
+    };
+
+    const service = new AiProviderService(
+      configService({
+        AI_FAST_FALLBACKS: "openrouter:google/gemini-3.1-flash-lite",
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "test-groq-key",
+        GROQ_MODEL: "llama-3.1-8b-instant",
+        OPENROUTER_API_KEY: "test-openrouter-key"
+      })
+    );
+
+    const result = await service.generateText({
+      input: "Hello",
+      instructions: "You are Nami."
+    });
+
+    assert.equal(requestedUrls.length, 2);
+    assert.equal(result.provider, "openrouter");
+    assert.equal(result.text, "Fallback is online.");
+  });
+
+  it("falls back when the primary route stops because of length", async () => {
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+
+      if (String(url).includes("api.groq.com")) {
+        return jsonResponse({
+          choices: [
+            {
+              finish_reason: "length",
+              message: { content: "Partial answer" }
+            }
+          ],
+          model: "llama-3.3-70b-versatile"
+        });
+      }
+
+      return jsonResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: "Complete fallback answer." }
+          }
+        ],
+        model: "google/gemini-3.1-flash-lite"
+      });
+    };
+
+    const service = new AiProviderService(
+      configService({
+        AI_CODING_FALLBACKS: "openrouter:google/gemini-3.1-flash-lite",
+        AI_CODING_MODEL: "llama-3.3-70b-versatile",
+        AI_CODING_PROVIDER: "groq",
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "test-groq-key",
+        OPENROUTER_API_KEY: "test-openrouter-key"
+      })
+    );
+
+    const result = await service.generateText({
+      input: "Write a complete landing page.",
+      instructions: "You are Nami.",
+      taskProfile: "coding"
+    });
+
+    assert.equal(requestedUrls.length, 2);
+    assert.equal(result.provider, "openrouter");
+    assert.equal(result.text, "Complete fallback answer.");
+    assert.equal(result.wasTruncated, false);
   });
 
   it("uses OpenRouter chat completions when openrouter is selected", async () => {
@@ -194,9 +353,9 @@ function configService(values: Record<string, string>) {
   } as ConfigService;
 }
 
-function jsonResponse(payload: unknown) {
+function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     headers: { "Content-Type": "application/json" },
-    status: 200
+    status
   });
 }

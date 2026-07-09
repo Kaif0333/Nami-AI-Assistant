@@ -24,9 +24,16 @@ export type ModelRoute = {
   model: string;
 };
 
+export type AiChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type GenerateTextInput = {
   instructions: string;
   input: string;
+  messages?: AiChatMessage[];
+  maxOutputTokens?: number;
   taskProfile?: AiTaskProfile;
 };
 
@@ -35,6 +42,8 @@ export type GenerateTextResult = {
   provider: AiProviderName;
   model: string;
   taskProfile: AiTaskProfile;
+  finishReason?: string;
+  wasTruncated?: boolean;
 };
 
 export const AI_PROVIDER_NOT_CONFIGURED_MESSAGE =

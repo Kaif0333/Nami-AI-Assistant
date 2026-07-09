@@ -47,13 +47,16 @@ AI provider behavior:
 
 - Set route variables such as `AI_FAST_PROVIDER`, `AI_CODING_PROVIDER`, and
   `AI_REASONING_PROVIDER` to dedicate providers/models by task profile.
+- Add fallback chains with `AI_CODING_FALLBACKS`, `AI_REASONING_FALLBACKS`, or
+  `AI_FALLBACKS` using `provider:model,provider:model`.
 - Coding, reasoning, research, local/private, and fast chat requests are routed
   before provider execution.
-- Keep `AI_PROVIDER` and provider-specific model variables as fallback defaults.
+- Keep `AI_PROVIDER` and provider-specific model variables as defaults.
 - If no real provider is configured, chat returns a provider setup error.
 - OpenAI is reserved for a future provider implementation.
-- If a selected provider/model is unavailable, chat returns the provider
-  unavailable error instead of a fake assistant reply.
+- If a selected provider/model is unavailable or reports a length stop, chat
+  retries the next configured real fallback before surfacing an error or
+  incomplete result.
 
 Current local free/free-tier recommendation:
 
@@ -62,8 +65,10 @@ AI_FAST_PROVIDER=groq
 AI_FAST_MODEL=llama-3.1-8b-instant
 AI_CODING_PROVIDER=groq
 AI_CODING_MODEL=llama-3.3-70b-versatile
+AI_CODING_FALLBACKS=openrouter:google/gemini-3.1-flash-lite,gemini:gemini-3.1-flash-lite
 AI_REASONING_PROVIDER=groq
 AI_REASONING_MODEL=llama-3.3-70b-versatile
+AI_REASONING_FALLBACKS=openrouter:google/gemini-3.1-flash-lite,gemini:gemini-3.1-flash-lite
 AI_RESEARCH_PROVIDER=gemini
 AI_RESEARCH_MODEL=gemini-3.1-flash-lite
 AI_LOCAL_PROVIDER=ollama

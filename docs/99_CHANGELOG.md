@@ -1,5 +1,29 @@
 # 99 — Changelog
 
+## [0.5.5] - 2026-07-09
+
+### Added
+
+- Chat now keeps a bounded per-conversation context window so follow-up prompts
+  like `continue` can refer to the previous answer.
+- AI routing now supports real-provider fallback chains for unavailable or
+  length-truncated primary routes.
+- Chat UI now shows an attachment picker state while clearly keeping file
+  reading locked until the document/file phase.
+
+### Changed
+
+- Removed Nami's fixed default answer-length cap; explicit env token limits are
+  still supported only when configured.
+- Chat view auto-scrolls to the latest message.
+
+### Notes
+
+- File/PDF/image ingestion is not implemented yet and no selected files are
+  uploaded from chat in this phase.
+- Provider/model hard limits still exist; Nami now retries configured real
+  fallbacks and auto-continues when truncation is reported.
+
 ## [0.5.4] - 2026-07-08
 
 ### Added

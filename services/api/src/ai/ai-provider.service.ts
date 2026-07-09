@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import {
   AI_PROVIDER_NOT_CONFIGURED_MESSAGE,
   AI_PROVIDER_UNAVAILABLE_MESSAGE,
+  AiChatMessage,
   AiProviderName,
   AiTaskProfile,
   aiProviderNames,
@@ -13,6 +14,7 @@ import {
 } from "./ai-provider.types";
 
 type OllamaGenerateResponse = {
+  done_reason?: string;
   response?: string;
   model?: string;
 };
@@ -24,11 +26,13 @@ type GeminiGenerateResponse = {
         text?: string;
       }>;
     };
+    finishReason?: string;
   }>;
 };
 
 type OpenAiCompatibleChatResponse = {
   choices?: Array<{
+    finish_reason?: string;
     message?: {
       content?: string | Array<{ text?: string }>;
     };
@@ -43,31 +47,48 @@ export class AiProviderService {
   constructor(@Inject(ConfigService) private readonly config: ConfigService) {}
 
   async generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
-    const route = this.getModelRoute(input.taskProfile ?? "fast");
-    const routedInput = { ...input, taskProfile: route.taskProfile };
+    const routes = this.getModelRoutes(input.taskProfile ?? "fast");
+    let lastError: ServiceUnavailableException | undefined;
+    let lastTruncatedResult: GenerateTextResult | undefined;
 
-    if (route.provider === "ollama") {
-      return this.generateWithOllama(routedInput, route);
+    for (const route of routes) {
+      const routedInput = {
+        ...input,
+        maxOutputTokens:
+          input.maxOutputTokens ??
+          this.getConfiguredMaxOutputTokens(route.taskProfile),
+        taskProfile: route.taskProfile
+      };
+
+      try {
+        const result = await this.generateWithRoute(routedInput, route);
+
+        if (!result.wasTruncated) {
+          return result;
+        }
+
+        lastTruncatedResult = result;
+        this.logger.warn(
+          `ai.route_truncated taskProfile=${route.taskProfile} provider=${route.provider} model=${route.model}`
+        );
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) {
+          lastError = error;
+          this.logger.warn(
+            `ai.route_unavailable taskProfile=${route.taskProfile} provider=${route.provider} model=${route.model}`
+          );
+          continue;
+        }
+
+        throw error;
+      }
     }
 
-    if (route.provider === "gemini") {
-      return this.generateWithGemini(routedInput, route);
+    if (lastTruncatedResult) {
+      return lastTruncatedResult;
     }
 
-    if (route.provider === "groq") {
-      return this.generateWithOpenAiCompatibleProvider(routedInput, {
-        apiKeyEnvName: "GROQ_API_KEY",
-        baseUrl: "https://api.groq.com/openai/v1",
-        model: route.model,
-        provider: "groq"
-      });
-    }
-
-    if (route.provider === "openrouter") {
-      return this.generateWithOpenRouter(routedInput, route);
-    }
-
-    throw this.providerUnavailable(route.provider);
+    throw lastError ?? this.providerUnavailable(routes[0]?.provider ?? "unknown");
   }
 
   getSelectedProvider(): AiProviderName {
@@ -101,6 +122,54 @@ export class AiProviderService {
       provider,
       model
     };
+  }
+
+  getModelRoutes(taskProfile: AiTaskProfile = "fast"): ModelRoute[] {
+    const primaryRoute = this.getModelRoute(taskProfile);
+    const routes = [
+      primaryRoute,
+      ...this.getFallbackRoutes(taskProfile)
+    ];
+    const seen = new Set<string>();
+
+    return routes.filter((route) => {
+      const key = `${route.provider}:${route.model}`;
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private async generateWithRoute(
+    input: GenerateTextInput,
+    route: ModelRoute
+  ): Promise<GenerateTextResult> {
+    if (route.provider === "ollama") {
+      return this.generateWithOllama(input, route);
+    }
+
+    if (route.provider === "gemini") {
+      return this.generateWithGemini(input, route);
+    }
+
+    if (route.provider === "groq") {
+      return this.generateWithOpenAiCompatibleProvider(input, {
+        apiKeyEnvName: "GROQ_API_KEY",
+        baseUrl: "https://api.groq.com/openai/v1",
+        model: route.model,
+        provider: "groq"
+      });
+    }
+
+    if (route.provider === "openrouter") {
+      return this.generateWithOpenRouter(input, route);
+    }
+
+    throw this.providerUnavailable(route.provider);
   }
 
   private getRouteProvider(taskProfile: AiTaskProfile): AiProviderName {
@@ -151,6 +220,43 @@ export class AiProviderService {
     return model;
   }
 
+  private getFallbackRoutes(taskProfile: AiTaskProfile): ModelRoute[] {
+    const profilePrefix = this.getTaskProfileEnvPrefix(taskProfile);
+    const rawFallbacks =
+      this.config.get<string>(`${profilePrefix}_FALLBACKS`) ??
+      this.config.get<string>("AI_FALLBACKS") ??
+      "";
+
+    return rawFallbacks
+      .split(",")
+      .map((fallback) => fallback.trim())
+      .filter(Boolean)
+      .flatMap((fallback) => {
+        const separatorIndex = fallback.indexOf(":");
+
+        if (separatorIndex <= 0) {
+          this.logger.warn(`ai.fallback_invalid value=${fallback}`);
+          return [];
+        }
+
+        const provider = fallback.slice(0, separatorIndex).trim().toLowerCase();
+        const model = fallback.slice(separatorIndex + 1).trim();
+
+        if (!aiProviderNames.includes(provider as AiProviderName) || !model) {
+          this.logger.warn(`ai.fallback_invalid value=${fallback}`);
+          return [];
+        }
+
+        return [
+          {
+            model,
+            provider: provider as AiProviderName,
+            taskProfile
+          }
+        ];
+      });
+  }
+
   private getTaskProfileEnvPrefix(taskProfile: AiTaskProfile) {
     return `AI_${taskProfile.toUpperCase()}`;
   }
@@ -195,7 +301,7 @@ export class AiProviderService {
         },
         body: JSON.stringify({
           model,
-          prompt: input.input,
+          prompt: this.buildPromptFromMessages(input),
           system: input.instructions,
           stream: false
         })
@@ -217,7 +323,9 @@ export class AiProviderService {
         text,
         provider: "ollama",
         model: payload.model ?? model,
-        taskProfile: route.taskProfile
+        taskProfile: route.taskProfile,
+        finishReason: payload.done_reason,
+        wasTruncated: this.isTruncatedFinishReason(payload.done_reason)
       };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -256,15 +364,9 @@ export class AiProviderService {
               parts: [{ text: input.instructions }]
             },
             contents: [
-              {
-                role: "user",
-                parts: [{ text: input.input }]
-              }
+              ...this.buildGeminiContents(input)
             ],
-            generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: 768
-            }
+            generationConfig: this.buildGenerationConfig(input)
           })
         }
       );
@@ -288,7 +390,11 @@ export class AiProviderService {
         text,
         provider: "gemini",
         model,
-        taskProfile: route.taskProfile
+        taskProfile: route.taskProfile,
+        finishReason: payload.candidates?.[0]?.finishReason,
+        wasTruncated: this.isTruncatedFinishReason(
+          payload.candidates?.[0]?.finishReason
+        )
       };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -358,12 +464,11 @@ export class AiProviderService {
           },
           body: JSON.stringify({
             model,
-            messages: [
-              { role: "system", content: input.instructions },
-              { role: "user", content: input.input }
-            ],
+            messages: this.buildOpenAiCompatibleMessages(input),
             temperature: 0.4,
-            max_tokens: 768
+            ...(input.maxOutputTokens
+              ? { max_tokens: input.maxOutputTokens }
+              : {})
           })
         }
       );
@@ -384,7 +489,11 @@ export class AiProviderService {
         text,
         provider: options.provider,
         model: payload.model ?? model,
-        taskProfile: input.taskProfile ?? "fast"
+        taskProfile: input.taskProfile ?? "fast",
+        finishReason: payload.choices?.[0]?.finish_reason,
+        wasTruncated: this.isTruncatedFinishReason(
+          payload.choices?.[0]?.finish_reason
+        )
       };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -413,6 +522,73 @@ export class AiProviderService {
     }
 
     return "";
+  }
+
+  private getConfiguredMaxOutputTokens(taskProfile: AiTaskProfile) {
+    const profilePrefix = this.getTaskProfileEnvPrefix(taskProfile);
+    const configured =
+      this.config.get<string>(`${profilePrefix}_MAX_OUTPUT_TOKENS`) ??
+      this.config.get<string>("AI_MAX_OUTPUT_TOKENS");
+    const parsed = configured ? Number(configured) : undefined;
+
+    if (parsed && Number.isFinite(parsed)) {
+      return Math.min(8192, Math.max(256, Math.trunc(parsed)));
+    }
+
+    return undefined;
+  }
+
+  private buildGenerationConfig(input: GenerateTextInput) {
+    return {
+      temperature: 0.4,
+      ...(input.maxOutputTokens
+        ? { maxOutputTokens: input.maxOutputTokens }
+        : {})
+    };
+  }
+
+  private buildPromptFromMessages(input: GenerateTextInput) {
+    return this.getConversationMessages(input)
+      .map((message) => `${message.role === "assistant" ? "Nami" : "Kaif"}: ${message.content}`)
+      .join("\n\n");
+  }
+
+  private buildGeminiContents(input: GenerateTextInput) {
+    return this.getConversationMessages(input).map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }]
+    }));
+  }
+
+  private buildOpenAiCompatibleMessages(input: GenerateTextInput) {
+    return [
+      { role: "system", content: input.instructions },
+      ...this.getConversationMessages(input)
+    ];
+  }
+
+  private getConversationMessages(input: GenerateTextInput): AiChatMessage[] {
+    const messages = input.messages?.length
+      ? input.messages
+      : [{ role: "user" as const, content: input.input }];
+
+    return messages
+      .map((message) => ({
+        role: message.role,
+        content: message.content.trim()
+      }))
+      .filter((message) => message.content.length > 0);
+  }
+
+  private isTruncatedFinishReason(reason?: string) {
+    const normalized = reason?.toLowerCase();
+
+    return (
+      normalized === "length" ||
+      normalized === "max_tokens" ||
+      normalized === "max_output_tokens" ||
+      normalized === "max_tokens_reached"
+    );
   }
 
   private toGeminiModelPath(model: string) {

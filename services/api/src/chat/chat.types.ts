@@ -11,5 +11,7 @@ export type ChatResponseData = {
   reply: string;
   conversationId: string;
   actions: ChatAction[];
+  finishReason?: string;
   modelRoute?: ModelRoute;
+  wasTruncated?: boolean;
 };
