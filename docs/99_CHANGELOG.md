@@ -1,5 +1,29 @@
 # 99 — Changelog
 
+## [0.6.1] - 2026-07-09
+
+### Added
+
+- Phase 5.1 voice provider routing for Groq and OpenAI STT/TTS.
+- Groq voice defaults for current development: `whisper-large-v3-turbo` STT and
+  `canopylabs/orpheus-v1-english` TTS.
+- Browser speech synthesis fallback for TTS with backend action-log tracking and
+  explicit `clientSide: true` API responses.
+- Unit tests for Groq STT/TTS routing and browser TTS fallback.
+
+### Changed
+
+- Voice status now reports selected STT/TTS provider routes, response format,
+  and browser fallback state.
+- Voice docs and `.env.example` now document the production-ready Voice Gateway
+  direction instead of OpenAI-only Phase 5 wiring.
+
+### Notes
+
+- No fake transcript, fake audio, wake word, background recording, or realtime
+  voice session was added.
+- Gemini Live, OpenAI Realtime, whisper.cpp, and Piper remain later voice lanes.
+
 ## [0.6.0] - 2026-07-09
 
 ### Added

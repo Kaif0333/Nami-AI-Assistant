@@ -1,22 +1,28 @@
-export const voiceProviders = ["openai"] as const;
+export const sttProviders = ["openai", "groq"] as const;
+export const ttsProviders = ["openai", "groq", "browser"] as const;
+export const voiceProviders = ["openai", "groq", "browser"] as const;
 
 export type VoiceProvider = (typeof voiceProviders)[number];
+export type SttProvider = (typeof sttProviders)[number];
+export type TtsProvider = (typeof ttsProviders)[number];
 
 export type VoiceStatus = {
   mode: "push_to_talk";
   stt: {
-    provider: VoiceProvider;
+    provider: SttProvider;
     configured: boolean;
     model: string;
     maxAudioBytes: number;
     supportedMimeTypes: string[];
   };
   tts: {
-    provider: VoiceProvider;
+    provider: TtsProvider;
     configured: boolean;
     model: string;
     voice: string;
-    responseFormat: "mp3";
+    responseFormat: "mp3" | "wav" | "browser";
+    fallbackProvider: "browser" | null;
+    clientSide: boolean;
   };
   realtime: {
     configured: boolean;
@@ -33,15 +39,16 @@ export type VoiceStatus = {
 
 export type VoiceTranscriptionResult = {
   transcript: string;
-  provider: VoiceProvider;
+  provider: SttProvider;
   model: string;
   durationMs?: number;
 };
 
 export type VoiceSpeechResult = {
-  audioBase64: string;
-  mimeType: "audio/mpeg";
-  provider: VoiceProvider;
+  audioBase64: string | null;
+  mimeType: "audio/mpeg" | "audio/wav" | "browser/speech-synthesis";
+  provider: TtsProvider;
   model: string;
   voice: string;
+  clientSide: boolean;
 };

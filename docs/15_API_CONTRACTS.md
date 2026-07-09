@@ -163,18 +163,20 @@ Status response:
   "data": {
     "mode": "push_to_talk",
     "stt": {
-      "provider": "openai",
+      "provider": "groq",
       "configured": false,
-      "model": "gpt-4o-mini-transcribe",
+      "model": "whisper-large-v3-turbo",
       "maxAudioBytes": 8388608,
       "supportedMimeTypes": ["audio/webm"]
     },
     "tts": {
-      "provider": "openai",
+      "provider": "groq",
       "configured": false,
-      "model": "gpt-4o-mini-tts",
-      "voice": "alloy",
-      "responseFormat": "mp3"
+      "model": "canopylabs/orpheus-v1-english",
+      "voice": "hannah",
+      "responseFormat": "wav",
+      "fallbackProvider": "browser",
+      "clientSide": false
     },
     "safety": {
       "pushToTalkOnly": true,
@@ -200,13 +202,13 @@ Transcription response:
 ```json
 {
   "success": true,
-  "data": {
-    "transcript": "string",
-    "provider": "openai",
-    "model": "gpt-4o-mini-transcribe",
-    "durationMs": 1200
+    "data": {
+      "transcript": "string",
+      "provider": "groq",
+      "model": "whisper-large-v3-turbo",
+      "durationMs": 1200
+    }
   }
-}
 ```
 
 Speech request:
@@ -221,15 +223,23 @@ Speech response:
 ```json
 {
   "success": true,
-  "data": {
-    "audioBase64": "base64-mp3",
-    "mimeType": "audio/mpeg",
-    "provider": "openai",
-    "model": "gpt-4o-mini-tts",
-    "voice": "alloy"
+    "data": {
+      "audioBase64": "base64-audio-or-null-for-browser-playback",
+      "mimeType": "audio/mpeg|audio/wav|browser/speech-synthesis",
+      "provider": "groq",
+      "model": "canopylabs/orpheus-v1-english",
+      "voice": "hannah",
+      "clientSide": false
+    }
   }
-}
 ```
+
+Voice provider notes:
+- STT providers: `groq`, `openai`.
+- TTS providers: `groq`, `openai`, `browser`.
+- Browser TTS responses set `clientSide: true`, `audioBase64: null`, and
+  `mimeType: "browser/speech-synthesis"`. The dashboard then uses real browser
+  speech synthesis; no fake audio is returned.
 
 ### Approval create
 

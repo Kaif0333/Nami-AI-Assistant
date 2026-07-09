@@ -20,6 +20,7 @@ export function SidebarNav() {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             className={cn(
               "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
               isActive && "bg-accent text-accent-foreground"

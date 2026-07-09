@@ -135,18 +135,20 @@ export type MemoryVectorStatus = {
 export type VoiceStatus = {
   mode: "push_to_talk";
   stt: {
-    provider: "openai";
+    provider: "openai" | "groq";
     configured: boolean;
     model: string;
     maxAudioBytes: number;
     supportedMimeTypes: string[];
   };
   tts: {
-    provider: "openai";
+    provider: "openai" | "groq" | "browser";
     configured: boolean;
     model: string;
     voice: string;
-    responseFormat: "mp3";
+    responseFormat: "mp3" | "wav" | "browser";
+    fallbackProvider: "browser" | null;
+    clientSide: boolean;
   };
   realtime: {
     configured: boolean;
@@ -163,17 +165,18 @@ export type VoiceStatus = {
 
 export type VoiceTranscriptionResult = {
   transcript: string;
-  provider: "openai";
+  provider: "openai" | "groq";
   model: string;
   durationMs?: number;
 };
 
 export type VoiceSpeechResult = {
-  audioBase64: string;
-  mimeType: "audio/mpeg";
-  provider: "openai";
+  audioBase64: string | null;
+  mimeType: "audio/mpeg" | "audio/wav" | "browser/speech-synthesis";
+  provider: "openai" | "groq" | "browser";
   model: string;
   voice: string;
+  clientSide: boolean;
 };
 
 type ApiSuccess<T> = {

@@ -20,14 +20,50 @@ Nami should support natural voice interaction.
   bounded base64 clip.
 - Text-to-speech uses `POST /api/voice/speech`.
 - `GET /api/voice/status` reports provider setup and safety state.
-- OpenAI is the only current voice provider.
-- If `OPENAI_API_KEY` is not configured, STT/TTS return a clear setup error and
-  no fake transcript or fake audio is generated.
+- Voice provider routing supports Groq and OpenAI for server-side STT/TTS.
+- Recommended current setup is Groq STT/TTS:
+  - STT: `whisper-large-v3-turbo`
+  - TTS: `canopylabs/orpheus-v1-english`
+- OpenAI STT/TTS remains supported for future/premium setup when
+  `OPENAI_API_KEY` is configured.
+- Browser speech synthesis is allowed only as explicit client-side TTS fallback.
+  It returns a client playback instruction and never fake audio.
+- If no real cloud STT provider is configured, STT returns a clear setup error
+  and no fake transcript is generated.
 - Voice attempts create action logs with sanitized previews.
+
+## Phase 5.1 provider routing
+
+Environment:
+
+```text
+VOICE_STT_PROVIDER=groq
+VOICE_STT_MODEL=whisper-large-v3-turbo
+VOICE_TTS_PROVIDER=groq
+VOICE_TTS_MODEL=canopylabs/orpheus-v1-english
+VOICE_TTS_VOICE=hannah
+VOICE_TTS_RESPONSE_FORMAT=wav
+VOICE_TTS_FALLBACK=browser
+```
+
+Provider rules:
+
+- `VOICE_STT_PROVIDER` supports `groq` or `openai`.
+- `VOICE_TTS_PROVIDER` supports `groq`, `openai`, or `browser`.
+- If no STT provider is selected, Nami prefers Groq when `GROQ_API_KEY` exists,
+  then OpenAI when `OPENAI_API_KEY` exists, then reports Groq setup needed.
+- If no TTS provider is selected, Nami prefers Groq, then OpenAI, then browser
+  speech synthesis.
+- `VOICE_TTS_FALLBACK=browser` lets TTS fall back to local browser playback if
+  the selected cloud TTS provider is missing or unavailable.
+- Browser fallback is not a fake provider. The backend logs the speech request
+  and returns `clientSide: true`; the dashboard uses the browser's real
+  `speechSynthesis` runtime.
 
 ## V2
 
 - OpenAI Realtime live voice
+- Gemini Live realtime voice evaluation
 - Streaming responses
 - Interrupt support
 - Conversation state

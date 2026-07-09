@@ -85,13 +85,23 @@ AI_LOCAL_MODEL=qwen3:4b
 Voice provider behavior:
 
 - Phase 5 is push-to-talk only.
-- `OPENAI_API_KEY` enables the current OpenAI STT/TTS provider.
+- `VOICE_STT_PROVIDER` supports `groq` or `openai`.
+- `VOICE_TTS_PROVIDER` supports `groq`, `openai`, or `browser`.
+- Recommended current setup is Groq STT/TTS:
+  `VOICE_STT_PROVIDER=groq`, `VOICE_STT_MODEL=whisper-large-v3-turbo`,
+  `VOICE_TTS_PROVIDER=groq`, and
+  `VOICE_TTS_MODEL=canopylabs/orpheus-v1-english`.
+- `GROQ_API_KEY` enables the current recommended Groq STT/TTS provider.
+- `OPENAI_API_KEY` enables the future/premium OpenAI STT/TTS provider.
+- `VOICE_TTS_FALLBACK=browser` returns an explicit client-side playback
+  instruction when cloud TTS is missing or unavailable.
 - `OPENAI_STT_MODEL` defaults to `gpt-4o-mini-transcribe`.
 - `OPENAI_TTS_MODEL` defaults to `gpt-4o-mini-tts`.
 - `OPENAI_TTS_VOICE` defaults to `alloy`.
 - `VOICE_MAX_AUDIO_BYTES` controls the local bounded audio clip limit.
-- If OpenAI voice config is missing, voice endpoints return setup errors
-  instead of fake transcripts or fake audio.
+- If cloud STT config is missing, voice transcription returns setup errors
+  instead of fake transcripts.
+- Browser TTS fallback uses real browser `speechSynthesis`; it is not fake audio.
 - Wake word and Realtime sessions are later phases.
 
 Database commands:

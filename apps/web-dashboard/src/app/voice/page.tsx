@@ -95,6 +95,35 @@ function getRecorderMimeType(supportedMimeTypes: string[]) {
   );
 }
 
+function speakWithBrowser(text: string, voiceName: string) {
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+    return Promise.reject(
+      new Error("Browser speech synthesis is not available in this runtime.")
+    );
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    if (voiceName && voiceName !== "system") {
+      const matchingVoice = window.speechSynthesis
+        .getVoices()
+        .find((voice) => voice.name === voiceName);
+
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
+    }
+
+    utterance.onend = () => resolve();
+    utterance.onerror = () =>
+      reject(new Error("Browser speech synthesis failed."));
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
 export default function VoicePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -108,6 +137,12 @@ export default function VoicePage() {
   const [fallbackReply, setFallbackReply] = useState("");
   const [speakDraft, setSpeakDraft] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [browserTtsAvailable] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      "SpeechSynthesisUtterance" in window
+  );
   const [timeline, setTimeline] = useState<TimelineEvent[]>([
     {
       id: "voice-page-ready",
@@ -170,7 +205,7 @@ export default function VoicePage() {
   async function startRecording() {
     if (!voiceStatus?.stt.configured) {
       const message =
-        "Voice provider is not configured. Configure OPENAI_API_KEY and voice models to use push-to-talk voice.";
+        "Voice STT provider is not configured. Configure GROQ_API_KEY or OPENAI_API_KEY to use push-to-talk voice.";
 
       setVoiceState("error");
       setErrorMessage(message);
@@ -360,9 +395,17 @@ export default function VoicePage() {
         status: "pending"
       });
       const speech = await synthesizeVoice({ text });
-      const audio = new Audio(`data:${speech.mimeType};base64,${speech.audioBase64}`);
 
-      await audio.play();
+      if (speech.clientSide) {
+        await speakWithBrowser(text, speech.voice);
+      } else if (speech.audioBase64) {
+        const audio = new Audio(`data:${speech.mimeType};base64,${speech.audioBase64}`);
+
+        await audio.play();
+      } else {
+        throw new Error("Voice speech response did not include playable audio.");
+      }
+
       setVoiceState("idle");
       pushTimeline({
         label: "Speech playing",
@@ -401,6 +444,13 @@ export default function VoicePage() {
     voiceState === "transcribing" ||
     voiceState === "speaking";
   const isListening = voiceState === "listening";
+  const ttsReady =
+    Boolean(
+      voiceStatus?.tts.provider === "browser"
+        ? browserTtsAvailable
+        : voiceStatus?.tts.configured
+    ) ||
+    Boolean(voiceStatus?.tts.fallbackProvider === "browser" && browserTtsAvailable);
 
   return (
     <AppShell
@@ -454,6 +504,14 @@ export default function VoicePage() {
                   <span className="text-muted-foreground">Mode</span>
                   <span className="font-medium text-foreground">
                     {voiceStatus?.mode.replaceAll("_", "-") ?? "loading"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">STT</span>
+                  <span className="font-medium text-foreground">
+                    {voiceStatus
+                      ? `${voiceStatus.stt.provider}/${voiceStatus.stt.model}`
+                      : "loading"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
@@ -517,19 +575,46 @@ export default function VoicePage() {
           <Card className="lg:col-span-2">
             <CardHeader className="flex-row items-center justify-between gap-3">
               <CardTitle>Speech output</CardTitle>
-              <Badge variant={voiceStatus?.tts.configured ? "default" : "secondary"}>
-                {voiceStatus?.tts.configured ? "TTS ready" : "Setup needed"}
+              <Badge variant={ttsReady ? "default" : "secondary"}>
+                {ttsReady ? "TTS ready" : "Setup needed"}
               </Badge>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-4">
+              <div className="grid gap-2 rounded-lg border border-border bg-background p-3 text-sm md:grid-cols-3">
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Provider
+                  </div>
+                  <div className="mt-1 font-medium text-foreground">
+                    {voiceStatus?.tts.provider ?? "loading"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Model
+                  </div>
+                  <div className="mt-1 break-words font-medium text-foreground">
+                    {voiceStatus?.tts.model ?? "loading"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Fallback
+                  </div>
+                  <div className="mt-1 font-medium text-foreground">
+                    {voiceStatus?.tts.fallbackProvider ?? "none"}
+                  </div>
+                </div>
+              </div>
               <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={handleSpeakSubmit}>
                 <input
+                  aria-label="Text to speak"
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onChange={(event) => setSpeakDraft(event.target.value)}
                   placeholder="Text to speak..."
                   value={speakDraft}
                 />
-                <Button disabled={voiceState === "speaking"} type="submit">
+                <Button disabled={voiceState === "speaking" || !ttsReady} type="submit">
                   {voiceState === "speaking" ? (
                     <Loader2 aria-hidden className="size-4 animate-spin" />
                   ) : (

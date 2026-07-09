@@ -59,12 +59,14 @@ A phase is complete only when:
 
 - Voice page exists and is reachable from dashboard navigation.
 - Voice status API reports push-to-talk safety state and provider setup.
+- Voice status API reports Groq/OpenAI/browser voice provider routing.
 - Push-to-talk starts microphone capture only from explicit user gesture.
 - STT endpoint accepts only supported bounded audio clips.
 - TTS endpoint accepts bounded text input.
-- STT/TTS return clear setup errors when OpenAI voice config is missing.
+- STT returns clear setup errors when no real cloud STT provider is configured.
+- TTS uses real cloud audio when configured or explicit browser speech synthesis fallback.
 - No fake transcript, fake spoken audio, wake word, or background recording is implemented.
 - Voice attempts create sanitized action logs.
 - Text fallback works without voice provider setup.
-- Unit tests cover voice status, setup errors, validation, STT, and TTS service logic.
+- Unit tests cover voice status, setup errors, validation, Groq/OpenAI STT, Groq/OpenAI TTS, and browser TTS fallback service logic.
 - Docs and changelog are updated.

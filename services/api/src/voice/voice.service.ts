@@ -14,29 +14,54 @@ import { SynthesizeVoiceDto } from "./dto/synthesize-voice.dto";
 import {
   VoiceSpeechResult,
   VoiceStatus,
-  VoiceTranscriptionResult
+  VoiceTranscriptionResult,
+  type SttProvider,
+  type TtsProvider
 } from "./voice.types";
 
-type OpenAiTranscriptionResponse = {
+type TranscriptionResponse = {
   text?: string;
 };
 
-const openAiAudioBaseUrl = "https://api.openai.com/v1/audio";
+const audioProviderConfig = {
+  openai: {
+    apiKeyEnv: "OPENAI_API_KEY",
+    audioBaseUrl: "https://api.openai.com/v1/audio"
+  },
+  groq: {
+    apiKeyEnv: "GROQ_API_KEY",
+    audioBaseUrl: "https://api.groq.com/openai/v1/audio"
+  }
+} as const satisfies Record<
+  SttProvider,
+  {
+    apiKeyEnv: string;
+    audioBaseUrl: string;
+  }
+>;
+
 const supportedSttMimeTypes = [
+  "audio/flac",
   "audio/mpeg",
   "audio/mp3",
   "audio/mp4",
   "audio/mpga",
   "audio/m4a",
+  "audio/ogg",
   "audio/wav",
   "audio/webm",
   "video/mp4",
   "video/webm"
 ];
 const defaultMaxAudioBytes = 8 * 1024 * 1024;
-const defaultSttModel = "gpt-4o-mini-transcribe";
-const defaultTtsModel = "gpt-4o-mini-tts";
-const defaultVoice = "alloy";
+const defaultOpenAiSttModel = "gpt-4o-mini-transcribe";
+const defaultOpenAiTtsModel = "gpt-4o-mini-tts";
+const defaultOpenAiVoice = "alloy";
+const defaultGroqSttModel = "whisper-large-v3-turbo";
+const defaultGroqTtsModel = "canopylabs/orpheus-v1-english";
+const defaultGroqVoice = "hannah";
+const browserTtsModel = "browser-speech-synthesis";
+const browserTtsVoice = "system";
 
 @Injectable()
 export class VoiceService {
@@ -50,25 +75,35 @@ export class VoiceService {
   ) {}
 
   getStatus(): VoiceStatus {
+    const sttProvider = this.getSttProvider();
+    const ttsProvider = this.getTtsProvider();
+    const ttsConfigured = this.isTtsConfigured(ttsProvider);
+    const browserFallback = this.getBrowserTtsFallback(ttsProvider);
+
     return {
       mode: "push_to_talk",
       stt: {
-        provider: "openai",
-        configured: this.isOpenAiConfigured(),
-        model: this.getSttModel(),
+        provider: sttProvider,
+        configured: this.isSttConfigured(sttProvider),
+        model: this.getSttModel(sttProvider),
         maxAudioBytes: this.getMaxAudioBytes(),
         supportedMimeTypes: supportedSttMimeTypes
       },
       tts: {
-        provider: "openai",
-        configured: this.isOpenAiConfigured(),
-        model: this.getTtsModel(),
-        voice: this.getTtsVoice(),
-        responseFormat: "mp3"
+        provider: ttsProvider,
+        configured: ttsConfigured,
+        model: this.getTtsModel(ttsProvider),
+        voice: this.getTtsVoice(ttsProvider),
+        responseFormat: this.getTtsResponseFormat(ttsProvider),
+        fallbackProvider: browserFallback,
+        clientSide: ttsProvider === "browser"
       },
       realtime: {
         configured: false,
-        model: this.config.get<string>("OPENAI_REALTIME_MODEL")?.trim() || "",
+        model:
+          this.config.get<string>("OPENAI_REALTIME_MODEL")?.trim() ||
+          this.config.get<string>("GEMINI_LIVE_MODEL")?.trim() ||
+          "",
         status: "planned_later"
       },
       safety: {
@@ -82,6 +117,8 @@ export class VoiceService {
 
   async transcribe(input: TranscribeVoiceDto): Promise<VoiceTranscriptionResult> {
     const audio = this.decodeAudio(input);
+    const provider = this.getSttProvider();
+    const model = this.getSttModel(provider);
 
     const log = await this.actionLogsService.createActionLog({
       actionType: "voice_transcription",
@@ -96,21 +133,22 @@ export class VoiceService {
       },
       metadata: {
         source: "voice",
-        provider: "openai",
+        provider,
+        model,
         pushToTalkOnly: true,
         realExternalAction: false
       }
     });
 
-    if (!this.isOpenAiConfigured()) {
+    if (!this.isSttConfigured(provider)) {
       await this.markVoiceFailure(log, "Voice STT not configured", {
+        provider,
         mimeType: input.mimeType,
         bytes: audio.byteLength
       });
-      throw this.providerNotConfigured("stt");
+      throw this.providerNotConfigured("stt", provider);
     }
 
-    const model = this.getSttModel();
     const formData = new FormData();
     const fileName = safeFileName(input.fileName, input.mimeType);
 
@@ -118,33 +156,37 @@ export class VoiceService {
     formData.set("file", new Blob([audio], { type: input.mimeType }), fileName);
 
     try {
-      const response = await fetch(`${openAiAudioBaseUrl}/transcriptions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.getOpenAiApiKey()}`
-        },
-        body: formData
-      });
+      const response = await fetch(
+        `${audioProviderConfig[provider].audioBaseUrl}/transcriptions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.getProviderApiKey(provider)}`
+          },
+          body: formData
+        }
+      );
 
       if (!response.ok) {
         this.logger.warn(`voice.stt_unavailable status=${response.status}`);
         await this.markVoiceFailure(log, "Voice STT provider request failed", {
+          provider,
           status: response.status,
           model
         });
-        throw this.providerUnavailable("stt");
+        throw this.providerUnavailable("stt", provider);
       }
 
-      const payload = (await response.json()) as OpenAiTranscriptionResponse;
+      const payload = (await response.json()) as TranscriptionResponse;
       const transcript = payload.text?.trim();
 
       if (!transcript) {
         await this.markVoiceFailure(
           log,
           "Voice STT provider returned no transcript",
-          { model }
+          { provider, model }
         );
-        throw this.providerUnavailable("stt");
+        throw this.providerUnavailable("stt", provider);
       }
 
       await this.actionLogsService.updateActionLog(log.id, {
@@ -155,7 +197,7 @@ export class VoiceService {
         },
         metadata: {
           ...log.metadata,
-          provider: "openai",
+          provider,
           model,
           pushToTalkOnly: true,
           realExternalAction: false
@@ -164,7 +206,7 @@ export class VoiceService {
 
       return {
         transcript,
-        provider: "openai",
+        provider,
         model,
         durationMs: input.durationMs
       };
@@ -176,8 +218,11 @@ export class VoiceService {
       this.logger.warn(
         `voice.stt_request_failed message=${error instanceof Error ? error.message : "unknown"}`
       );
-      await this.markVoiceFailure(log, "Voice STT failed", { model });
-      throw this.providerUnavailable("stt");
+      await this.markVoiceFailure(log, "Voice STT failed", {
+        provider,
+        model
+      });
+      throw this.providerUnavailable("stt", provider);
     }
   }
 
@@ -199,74 +244,111 @@ export class VoiceService {
       riskLevel: "low",
       inputPreview: {
         characters: text.length,
-        voice: input.voice ?? this.getTtsVoice()
+        voice: input.voice ?? this.getTtsVoice(this.getTtsProvider())
       },
       metadata: {
         source: "voice",
-        provider: "openai",
+        provider: this.getTtsProvider(),
         realExternalAction: false
       }
     });
 
-    if (!this.isOpenAiConfigured()) {
-      await this.markVoiceFailure(log, "Voice TTS not configured", {
-        characters: text.length
-      });
-      throw this.providerNotConfigured("tts");
+    const provider = this.getTtsProvider();
+    const model = this.getTtsModel(provider);
+    const voice = input.voice?.trim() || this.getTtsVoice(provider);
+
+    if (provider === "browser") {
+      return this.completeBrowserSpeech(log, voice);
     }
 
-    const model = this.getTtsModel();
-    const voice = input.voice?.trim() || this.getTtsVoice();
+    if (!this.isTtsConfigured(provider)) {
+      const fallback = this.getBrowserTtsFallback(provider);
+
+      if (fallback === "browser") {
+        return this.completeBrowserSpeech(log, browserTtsVoice, {
+          failedProvider: provider,
+          failedModel: model,
+          reason: "provider_not_configured"
+        });
+      }
+
+      await this.markVoiceFailure(log, "Voice TTS not configured", {
+        provider,
+        characters: text.length
+      });
+      throw this.providerNotConfigured("tts", provider);
+    }
+
+    const responseFormat = this.getTtsResponseFormat(provider);
+
+    if (responseFormat === "browser") {
+      return this.completeBrowserSpeech(log, browserTtsVoice);
+    }
 
     try {
-      const response = await fetch(`${openAiAudioBaseUrl}/speech`, {
+      const response = await fetch(`${audioProviderConfig[provider].audioBaseUrl}/speech`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.getOpenAiApiKey()}`,
+          Authorization: `Bearer ${this.getProviderApiKey(provider)}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           model,
           voice,
           input: text,
-          response_format: "mp3"
+          response_format: responseFormat
         })
       });
 
       if (!response.ok) {
         this.logger.warn(`voice.tts_unavailable status=${response.status}`);
+        const fallback = this.getBrowserTtsFallback(provider);
+
+        if (fallback === "browser") {
+          return this.completeBrowserSpeech(log, browserTtsVoice, {
+            failedProvider: provider,
+            failedModel: model,
+            status: response.status,
+            reason: "provider_unavailable"
+          });
+        }
+
         await this.markVoiceFailure(log, "Voice TTS provider request failed", {
+          provider,
           status: response.status,
           model,
           voice
         });
-        throw this.providerUnavailable("tts");
+        throw this.providerUnavailable("tts", provider);
       }
 
       const audioBuffer = Buffer.from(await response.arrayBuffer());
       const audioBase64 = audioBuffer.toString("base64");
+      const mimeType = mimeTypeForResponseFormat(responseFormat);
 
       await this.actionLogsService.updateActionLog(log.id, {
         status: "completed",
         outputPreview: {
           bytes: audioBuffer.byteLength,
-          mimeType: "audio/mpeg"
+          mimeType
         },
         metadata: {
           ...log.metadata,
-          provider: "openai",
+          provider,
           model,
           voice,
+          responseFormat,
           realExternalAction: false
         }
       });
 
       return {
         audioBase64,
-        mimeType: "audio/mpeg",
-        provider: "openai",
+        mimeType,
+        provider,
         model,
-        voice
+        voice,
+        clientSide: false
       };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -276,11 +358,22 @@ export class VoiceService {
       this.logger.warn(
         `voice.tts_request_failed message=${error instanceof Error ? error.message : "unknown"}`
       );
+      const fallback = this.getBrowserTtsFallback(provider);
+
+      if (fallback === "browser") {
+        return this.completeBrowserSpeech(log, browserTtsVoice, {
+          failedProvider: provider,
+          failedModel: model,
+          reason: "provider_request_failed"
+        });
+      }
+
       await this.markVoiceFailure(log, "Voice TTS failed", {
+        provider,
         model,
         voice
       });
-      throw this.providerUnavailable("tts");
+      throw this.providerUnavailable("tts", provider);
     }
   }
 
@@ -331,34 +424,181 @@ export class VoiceService {
       outputPreview: details,
       metadata: {
         ...log.metadata,
-        provider: "openai",
         realExternalAction: false
       }
     });
   }
 
-  private isOpenAiConfigured() {
-    return Boolean(this.getOpenAiApiKey());
+  private async completeBrowserSpeech(
+    log: ActionLog,
+    voice: string,
+    fallbackDetails: Record<string, unknown> = {}
+  ): Promise<VoiceSpeechResult> {
+    await this.actionLogsService.updateActionLog(log.id, {
+      status: "completed",
+      outputPreview: {
+        clientSide: true,
+        mimeType: "browser/speech-synthesis",
+        ...fallbackDetails
+      },
+      metadata: {
+        ...log.metadata,
+        provider: "browser",
+        model: browserTtsModel,
+        voice,
+        fallback: Object.keys(fallbackDetails).length > 0,
+        realExternalAction: false
+      }
+    });
+
+    return {
+      audioBase64: null,
+      mimeType: "browser/speech-synthesis",
+      provider: "browser",
+      model: browserTtsModel,
+      voice,
+      clientSide: true
+    };
   }
 
-  private getOpenAiApiKey() {
-    return this.config.get<string>("OPENAI_API_KEY")?.trim() ?? "";
+  private isSttConfigured(provider: SttProvider) {
+    return Boolean(this.getProviderApiKey(provider));
   }
 
-  private getSttModel() {
+  private isTtsConfigured(provider: TtsProvider) {
+    return provider === "browser" || Boolean(this.getProviderApiKey(provider));
+  }
+
+  private getProviderApiKey(provider: SttProvider) {
+    return this.config.get<string>(audioProviderConfig[provider].apiKeyEnv)?.trim() ?? "";
+  }
+
+  private getSttProvider(): SttProvider {
+    const configured = normalizeSttProvider(
+      this.config.get<string>("VOICE_STT_PROVIDER")
+    );
+
+    if (configured) {
+      return configured;
+    }
+
+    if (this.getProviderApiKey("groq")) {
+      return "groq";
+    }
+
+    if (this.getProviderApiKey("openai")) {
+      return "openai";
+    }
+
+    return "groq";
+  }
+
+  private getTtsProvider(): TtsProvider {
+    const configured = normalizeTtsProvider(
+      this.config.get<string>("VOICE_TTS_PROVIDER")
+    );
+
+    if (configured) {
+      return configured;
+    }
+
+    if (this.getProviderApiKey("groq")) {
+      return "groq";
+    }
+
+    if (this.getProviderApiKey("openai")) {
+      return "openai";
+    }
+
+    return "browser";
+  }
+
+  private getSttModel(provider: SttProvider) {
+    const generic = this.config.get<string>("VOICE_STT_MODEL")?.trim();
+
+    if (generic) {
+      return generic;
+    }
+
+    if (provider === "groq") {
+      return (
+        this.config.get<string>("GROQ_STT_MODEL")?.trim() ||
+        defaultGroqSttModel
+      );
+    }
+
     return (
       this.config.get<string>("OPENAI_STT_MODEL")?.trim() ||
       this.config.get<string>("OPENAI_TRANSCRIBE_MODEL")?.trim() ||
-      defaultSttModel
+      defaultOpenAiSttModel
     );
   }
 
-  private getTtsModel() {
-    return this.config.get<string>("OPENAI_TTS_MODEL")?.trim() || defaultTtsModel;
+  private getTtsModel(provider: TtsProvider) {
+    const generic = this.config.get<string>("VOICE_TTS_MODEL")?.trim();
+
+    if (generic && provider !== "browser") {
+      return generic;
+    }
+
+    if (provider === "groq") {
+      return (
+        this.config.get<string>("GROQ_TTS_MODEL")?.trim() ||
+        defaultGroqTtsModel
+      );
+    }
+
+    if (provider === "openai") {
+      return this.config.get<string>("OPENAI_TTS_MODEL")?.trim() || defaultOpenAiTtsModel;
+    }
+
+    return browserTtsModel;
   }
 
-  private getTtsVoice() {
-    return this.config.get<string>("OPENAI_TTS_VOICE")?.trim() || defaultVoice;
+  private getTtsVoice(provider: TtsProvider) {
+    const generic = this.config.get<string>("VOICE_TTS_VOICE")?.trim();
+
+    if (generic && provider !== "browser") {
+      return generic;
+    }
+
+    if (provider === "groq") {
+      return this.config.get<string>("GROQ_TTS_VOICE")?.trim() || defaultGroqVoice;
+    }
+
+    if (provider === "openai") {
+      return this.config.get<string>("OPENAI_TTS_VOICE")?.trim() || defaultOpenAiVoice;
+    }
+
+    return browserTtsVoice;
+  }
+
+  private getTtsResponseFormat(provider: TtsProvider) {
+    const configured = normalizeTtsResponseFormat(
+      this.config.get<string>("VOICE_TTS_RESPONSE_FORMAT")
+    );
+
+    if (provider === "browser") {
+      return "browser";
+    }
+
+    if (configured) {
+      return configured;
+    }
+
+    return provider === "groq" ? "wav" : "mp3";
+  }
+
+  private getBrowserTtsFallback(provider: TtsProvider) {
+    if (provider === "browser") {
+      return null;
+    }
+
+    const value = this.config.get<string>("VOICE_TTS_FALLBACK")?.trim().toLowerCase();
+
+    return value === "none" || value === "off" || value === "false"
+      ? null
+      : "browser";
   }
 
   private getMaxAudioBytes() {
@@ -371,21 +611,27 @@ export class VoiceService {
     return defaultMaxAudioBytes;
   }
 
-  private providerNotConfigured(capability: "stt" | "tts") {
+  private providerNotConfigured(
+    capability: "stt" | "tts",
+    provider: SttProvider | TtsProvider
+  ) {
     return new ServiceUnavailableException({
       code: "VOICE_PROVIDER_NOT_CONFIGURED",
       message:
-        "Voice provider is not configured. Configure OPENAI_API_KEY and voice models to use push-to-talk voice.",
-      details: { provider: "openai", capability }
+        "Voice provider is not configured. Configure GROQ_API_KEY or OPENAI_API_KEY for push-to-talk voice.",
+      details: { provider, capability }
     });
   }
 
-  private providerUnavailable(capability: "stt" | "tts") {
+  private providerUnavailable(
+    capability: "stt" | "tts",
+    provider: SttProvider | TtsProvider
+  ) {
     return new ServiceUnavailableException({
       code: "VOICE_PROVIDER_UNAVAILABLE",
       message:
         "Voice provider is unavailable. Please check the voice provider setup and try again.",
-      details: { provider: "openai", capability }
+      details: { provider, capability }
     });
   }
 }
@@ -409,6 +655,8 @@ function extensionForMimeType(mimeType: string) {
     case "audio/mpeg":
     case "audio/mp3":
       return "mp3";
+    case "audio/flac":
+      return "flac";
     case "audio/mp4":
     case "video/mp4":
       return "mp4";
@@ -416,6 +664,8 @@ function extensionForMimeType(mimeType: string) {
       return "mpga";
     case "audio/m4a":
       return "m4a";
+    case "audio/ogg":
+      return "ogg";
     case "audio/wav":
       return "wav";
     case "audio/webm":
@@ -424,4 +674,28 @@ function extensionForMimeType(mimeType: string) {
     default:
       return "webm";
   }
+}
+
+function normalizeSttProvider(value: string | undefined): SttProvider | null {
+  const normalized = value?.trim().toLowerCase();
+
+  return normalized === "openai" || normalized === "groq" ? normalized : null;
+}
+
+function normalizeTtsProvider(value: string | undefined): TtsProvider | null {
+  const normalized = value?.trim().toLowerCase();
+
+  return normalized === "openai" || normalized === "groq" || normalized === "browser"
+    ? normalized
+    : null;
+}
+
+function normalizeTtsResponseFormat(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase();
+
+  return normalized === "mp3" || normalized === "wav" ? normalized : null;
+}
+
+function mimeTypeForResponseFormat(responseFormat: "mp3" | "wav") {
+  return responseFormat === "wav" ? "audio/wav" : "audio/mpeg";
 }
