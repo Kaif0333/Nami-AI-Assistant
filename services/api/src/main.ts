@@ -3,13 +3,14 @@ import "reflect-metadata";
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module";
 import { AppHttpExceptionFilter } from "./common/filters/app-http-exception.filter";
 import { isAllowedCorsOrigin, resolveWebOrigins } from "./config/cors";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   const logger = new Logger("NamiApi");
   const port = Number(config.get("API_PORT") ?? config.get("PORT") ?? 4000);
@@ -19,6 +20,7 @@ async function bootstrap() {
   const webOrigins = resolveWebOrigins(webOriginConfig, appEnv);
 
   app.setGlobalPrefix("api");
+  app.useBodyParser("json", { limit: "16mb" });
   app.enableCors({
     origin(
       origin: string | undefined,

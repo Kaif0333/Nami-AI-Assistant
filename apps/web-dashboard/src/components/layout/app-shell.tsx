@@ -33,8 +33,8 @@ export function AppShell({ title, description, children }: AppShellProps) {
               Safe build mode
             </div>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              Phase 4 active. Memory, approvals, and audit logs are connected;
-              external automation remains gated.
+              Phase 5 active. Voice remains push-to-talk only; external
+              automation remains gated.
             </p>
           </div>
         </aside>

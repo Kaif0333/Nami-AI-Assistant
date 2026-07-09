@@ -54,3 +54,17 @@ A phase is complete only when:
 - Chat dashboard can list and reopen saved conversations.
 - Unit tests cover memory service behavior.
 - Docs and changelog are updated.
+
+## Phase 5 acceptance
+
+- Voice page exists and is reachable from dashboard navigation.
+- Voice status API reports push-to-talk safety state and provider setup.
+- Push-to-talk starts microphone capture only from explicit user gesture.
+- STT endpoint accepts only supported bounded audio clips.
+- TTS endpoint accepts bounded text input.
+- STT/TTS return clear setup errors when OpenAI voice config is missing.
+- No fake transcript, fake spoken audio, wake word, or background recording is implemented.
+- Voice attempts create sanitized action logs.
+- Text fallback works without voice provider setup.
+- Unit tests cover voice status, setup errors, validation, STT, and TTS service logic.
+- Docs and changelog are updated.

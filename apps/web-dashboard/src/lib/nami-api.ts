@@ -132,6 +132,50 @@ export type MemoryVectorStatus = {
   message: string;
 };
 
+export type VoiceStatus = {
+  mode: "push_to_talk";
+  stt: {
+    provider: "openai";
+    configured: boolean;
+    model: string;
+    maxAudioBytes: number;
+    supportedMimeTypes: string[];
+  };
+  tts: {
+    provider: "openai";
+    configured: boolean;
+    model: string;
+    voice: string;
+    responseFormat: "mp3";
+  };
+  realtime: {
+    configured: boolean;
+    model: string;
+    status: "planned_later";
+  };
+  safety: {
+    pushToTalkOnly: true;
+    wakeWordEnabled: false;
+    backgroundRecordingEnabled: false;
+    uploadsRequireUserGesture: true;
+  };
+};
+
+export type VoiceTranscriptionResult = {
+  transcript: string;
+  provider: "openai";
+  model: string;
+  durationMs?: number;
+};
+
+export type VoiceSpeechResult = {
+  audioBase64: string;
+  mimeType: "audio/mpeg";
+  provider: "openai";
+  model: string;
+  voice: string;
+};
+
 type ApiSuccess<T> = {
   success: true;
   data: T;
@@ -289,6 +333,29 @@ export async function listMemories(filters?: {
 
 export async function getMemoryVectorStatus() {
   return apiRequest<MemoryVectorStatus>("/memories/vector-status");
+}
+
+export async function getVoiceStatus() {
+  return apiRequest<VoiceStatus>("/voice/status");
+}
+
+export async function transcribeVoice(input: {
+  audioBase64: string;
+  mimeType: string;
+  fileName?: string;
+  durationMs?: number;
+}) {
+  return apiRequest<VoiceTranscriptionResult>("/voice/transcriptions", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function synthesizeVoice(input: { text: string; voice?: string }) {
+  return apiRequest<VoiceSpeechResult>("/voice/speech", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 export async function createMemory(input: {

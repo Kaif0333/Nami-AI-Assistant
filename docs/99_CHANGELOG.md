@@ -1,5 +1,29 @@
 # 99 — Changelog
 
+## [0.6.0] - 2026-07-09
+
+### Added
+
+- Phase 5 push-to-talk Voice page with microphone state, transcript display,
+  text fallback, and speech output controls.
+- Voice API endpoints for status, bounded audio transcription, and speech
+  synthesis.
+- OpenAI STT/TTS provider wiring for real voice calls when `OPENAI_API_KEY` and
+  voice model config are present.
+- Voice service unit tests for status, validation, setup errors, STT, and TTS.
+
+### Changed
+
+- Dashboard navigation and phase status now include Phase 5 Voice.
+- API JSON body limit now supports bounded base64 push-to-talk clips, while the
+  voice service still enforces its own audio size limit.
+
+### Notes
+
+- No fake transcript or fake audio fallback was added.
+- Wake word, background listening, OpenAI Realtime live voice sessions, and
+  offline STT/TTS remain later phases.
+
 ## [0.5.6] - 2026-07-09
 
 ### Added

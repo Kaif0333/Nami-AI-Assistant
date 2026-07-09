@@ -12,6 +12,7 @@ import {
   KeyRound,
   ListChecks,
   Mail,
+  Mic2,
   MessageSquareText,
   Network,
   RadioTower,
@@ -30,6 +31,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { title: "Home", href: "/", icon: Home },
   { title: "Chat", href: "/chat", icon: MessageSquareText },
+  { title: "Voice", href: "/voice", icon: Mic2 },
   { title: "Memory", href: "/memory", icon: BrainCircuit },
   { title: "Tasks", href: "/tasks", icon: ListChecks },
   { title: "Projects", href: "/projects", icon: SquareTerminal },
@@ -40,7 +42,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const systemStats = [
-  { label: "Build phase", value: "Phase 4", detail: "Database + memory" },
+  { label: "Build phase", value: "Phase 5", detail: "Push-to-talk voice" },
   { label: "Risk mode", value: "Gated", detail: "Approval queue persisted" },
   { label: "Runtime", value: "Local", detail: "API + dashboard" }
 ];
@@ -124,7 +126,7 @@ export const projects = [
   {
     name: "Nami dashboard",
     health: "Active",
-    progress: "Phase 4",
+    progress: "Phase 5",
     icon: Gauge
   },
   {

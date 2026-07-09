@@ -12,6 +12,19 @@ Nami should support natural voice interaction.
 - Voice input logs
 - Text fallback
 
+## Phase 5 implementation
+
+- Voice page is available at `/voice`.
+- Microphone capture starts only after an explicit push-to-talk user gesture.
+- Captured browser audio is sent to `POST /api/voice/transcriptions` as a
+  bounded base64 clip.
+- Text-to-speech uses `POST /api/voice/speech`.
+- `GET /api/voice/status` reports provider setup and safety state.
+- OpenAI is the only current voice provider.
+- If `OPENAI_API_KEY` is not configured, STT/TTS return a clear setup error and
+  no fake transcript or fake audio is generated.
+- Voice attempts create action logs with sanitized previews.
+
 ## V2
 
 - OpenAI Realtime live voice
@@ -50,3 +63,5 @@ Nami should show:
 - Never record secretly.
 - Show active mic state.
 - Allow immediate stop.
+- No wake word in Phase 5.
+- No background microphone listener in Phase 5.

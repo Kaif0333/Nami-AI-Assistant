@@ -2,7 +2,7 @@
 
 NestJS backend API for Nami.
 
-## Phase 4 ownership
+## Phase 5 ownership
 
 - `GET /api/health`
 - `POST /api/chat`
@@ -24,8 +24,12 @@ NestJS backend API for Nami.
 - `PATCH /api/memories/:id`
 - `POST /api/memories/:id/disable`
 - `DELETE /api/memories/:id`
+- `GET /api/voice/status`
+- `POST /api/voice/transcriptions`
+- `POST /api/voice/speech`
 - Backend-only real AI provider abstraction
 - Chat conversation/message persistence when `DATABASE_URL` is configured
+- Push-to-talk voice STT/TTS abstraction with clear setup errors when OpenAI voice config is missing
 - Safe action policy
 - Prisma/PostgreSQL persistence when `DATABASE_URL` is configured
 - In-memory fallback for local development/tests without a database URL
@@ -77,6 +81,18 @@ AI_RESEARCH_MODEL=gemini-3.1-flash-lite
 AI_LOCAL_PROVIDER=ollama
 AI_LOCAL_MODEL=qwen3:4b
 ```
+
+Voice provider behavior:
+
+- Phase 5 is push-to-talk only.
+- `OPENAI_API_KEY` enables the current OpenAI STT/TTS provider.
+- `OPENAI_STT_MODEL` defaults to `gpt-4o-mini-transcribe`.
+- `OPENAI_TTS_MODEL` defaults to `gpt-4o-mini-tts`.
+- `OPENAI_TTS_VOICE` defaults to `alloy`.
+- `VOICE_MAX_AUDIO_BYTES` controls the local bounded audio clip limit.
+- If OpenAI voice config is missing, voice endpoints return setup errors
+  instead of fake transcripts or fake audio.
+- Wake word and Realtime sessions are later phases.
 
 Database commands:
 

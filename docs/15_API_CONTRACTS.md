@@ -68,11 +68,7 @@ Conversation list response:
         "lastMessagePreview": "string",
         "createdAt": "iso-date",
         "updatedAt": "iso-date",
-        "metadata": {
-          "taskProfile": "fast|coding|reasoning|research|local",
-          "provider": "string",
-          "model": "string"
-        }
+        "metadata": {}
       }
     ]
   }
@@ -97,7 +93,11 @@ Conversation detail response:
         "role": "user|assistant",
         "content": "string",
         "createdAt": "iso-date",
-        "metadata": {}
+        "metadata": {
+          "taskProfile": "fast|coding|reasoning|research|local",
+          "provider": "string",
+          "model": "string"
+        }
       }
     ]
   }
@@ -143,6 +143,90 @@ Response:
     "createdAt": "iso-date",
     "updatedAt": "iso-date",
     "metadata": {}
+  }
+}
+```
+
+### Voice
+
+`GET /api/voice/status`
+`POST /api/voice/transcriptions`
+`POST /api/voice/speech`
+
+Voice V1 is push-to-talk only. Wake word, background listening, and Realtime
+speech sessions are not enabled in Phase 5.
+
+Status response:
+```json
+{
+  "success": true,
+  "data": {
+    "mode": "push_to_talk",
+    "stt": {
+      "provider": "openai",
+      "configured": false,
+      "model": "gpt-4o-mini-transcribe",
+      "maxAudioBytes": 8388608,
+      "supportedMimeTypes": ["audio/webm"]
+    },
+    "tts": {
+      "provider": "openai",
+      "configured": false,
+      "model": "gpt-4o-mini-tts",
+      "voice": "alloy",
+      "responseFormat": "mp3"
+    },
+    "safety": {
+      "pushToTalkOnly": true,
+      "wakeWordEnabled": false,
+      "backgroundRecordingEnabled": false,
+      "uploadsRequireUserGesture": true
+    }
+  }
+}
+```
+
+Transcription request:
+```json
+{
+  "audioBase64": "base64-audio",
+  "mimeType": "audio/webm",
+  "fileName": "nami-voice.webm",
+  "durationMs": 1200
+}
+```
+
+Transcription response:
+```json
+{
+  "success": true,
+  "data": {
+    "transcript": "string",
+    "provider": "openai",
+    "model": "gpt-4o-mini-transcribe",
+    "durationMs": 1200
+  }
+}
+```
+
+Speech request:
+```json
+{
+  "text": "string",
+  "voice": "alloy"
+}
+```
+
+Speech response:
+```json
+{
+  "success": true,
+  "data": {
+    "audioBase64": "base64-mp3",
+    "mimeType": "audio/mpeg",
+    "provider": "openai",
+    "model": "gpt-4o-mini-tts",
+    "voice": "alloy"
   }
 }
 ```
