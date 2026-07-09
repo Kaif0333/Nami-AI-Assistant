@@ -6,6 +6,7 @@ import { NestFactory } from "@nestjs/core";
 
 import { AppModule } from "./app.module";
 import { AppHttpExceptionFilter } from "./common/filters/app-http-exception.filter";
+import { isAllowedCorsOrigin, resolveWebOrigins } from "./config/cors";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -19,7 +20,18 @@ async function bootstrap() {
 
   app.setGlobalPrefix("api");
   app.enableCors({
-    origin: webOrigins,
+    origin(
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void
+    ) {
+      if (isAllowedCorsOrigin(origin, webOrigins)) {
+        callback(null, true);
+        return;
+      }
+
+      logger.warn(`Blocked API request from untrusted origin: ${origin}`);
+      callback(null, false);
+    },
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   });
@@ -37,22 +49,3 @@ async function bootstrap() {
 }
 
 void bootstrap();
-
-function resolveWebOrigins(webOriginConfig: string, appEnv: string) {
-  const origins = webOriginConfig
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  if (appEnv !== "production") {
-    if (origins.includes("http://localhost:3000")) {
-      origins.push("http://127.0.0.1:3000");
-    }
-
-    if (origins.includes("http://127.0.0.1:3000")) {
-      origins.push("http://localhost:3000");
-    }
-  }
-
-  return [...new Set(origins)];
-}
