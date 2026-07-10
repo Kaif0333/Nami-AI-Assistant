@@ -1,5 +1,6 @@
 CREATE TYPE "ResearchMode" AS ENUM ('fast', 'deep');
 CREATE TYPE "ResearchStatus" AS ENUM ('pending', 'running', 'completed', 'partial', 'failed');
+CREATE TYPE "ResearchSourceType" AS ENUM ('web', 'url_context');
 
 CREATE TABLE "research_runs" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,10 +34,11 @@ CREATE TABLE "research_sources" (
   "snippet" TEXT NOT NULL,
   "published_at" TIMESTAMPTZ,
   "retrieved_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "source_type" TEXT NOT NULL,
+  "source_type" "ResearchSourceType" NOT NULL,
   "citation_metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
   "trusted" BOOLEAN NOT NULL DEFAULT false,
-  "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb
+  "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
+  CONSTRAINT "research_sources_trusted_false_check" CHECK ("trusted" = false)
 );
 
 CREATE INDEX "research_runs_status_created_at_idx" ON "research_runs" ("status", "created_at");

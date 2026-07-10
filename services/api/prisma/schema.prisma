@@ -72,6 +72,11 @@ enum ResearchStatus {
   failed
 }
 
+enum ResearchSourceType {
+  web
+  url_context
+}
+
 model UserProfile {
   id          String   @id @default(uuid()) @db.Uuid
   displayName String   @map("display_name")
@@ -237,7 +242,7 @@ model ResearchSource {
   snippet          String
   publishedAt      DateTime?   @map("published_at")
   retrievedAt      DateTime    @default(now()) @map("retrieved_at")
-  sourceType       String      @map("source_type")
+  sourceType       ResearchSourceType @map("source_type")
   citationMetadata Json        @default("{}") @map("citation_metadata")
   trusted          Boolean     @default(false)
   metadata         Json        @default("{}")

@@ -10,6 +10,9 @@ export const researchStatuses = [
 ] as const;
 export type ResearchStatus = (typeof researchStatuses)[number];
 
+export const researchSourceTypes = ["web", "url_context"] as const;
+export type ResearchSourceType = (typeof researchSourceTypes)[number];
+
 export type ResearchReport = {
   summary: string;
   keyFindings: string[];
@@ -28,7 +31,7 @@ export type ResearchSource = {
   snippet: string;
   publishedAt: string | null;
   retrievedAt: string;
-  sourceType: "web" | "url_context";
+  sourceType: ResearchSourceType;
   citationMetadata: Record<string, unknown>;
   trusted: false;
   metadata: Record<string, unknown>;

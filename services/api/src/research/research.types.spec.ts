@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { researchModes, researchStatuses } from "./research.types";
+import {
+  researchModes,
+  researchSourceTypes,
+  researchStatuses
+} from "./research.types";
 
 describe("research contracts", () => {
   it("keeps supported modes and statuses stable", () => {
@@ -12,5 +16,9 @@ describe("research contracts", () => {
       "partial",
       "failed"
     ]);
+  });
+
+  it("keeps supported source types stable", () => {
+    assert.deepEqual(researchSourceTypes, ["web", "url_context"]);
   });
 });
