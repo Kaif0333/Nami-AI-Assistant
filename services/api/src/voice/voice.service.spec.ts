@@ -206,6 +206,7 @@ describe("VoiceService", () => {
     assert.equal(result.mimeType, "browser/speech-synthesis");
     assert.equal(result.provider, "browser");
     assert.equal(result.model, "browser-speech-synthesis");
+    assert.equal(result.voice, "female");
     assert.equal(result.clientSide, true);
     assert.equal(logs.length, 1);
     assert.equal(logs[0].status, "completed");

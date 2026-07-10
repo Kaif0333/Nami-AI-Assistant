@@ -1,5 +1,18 @@
 # 99 — Changelog
 
+## [0.6.2] - 2026-07-10
+
+### Added
+
+- Automatic voice conversation loop: push-to-talk transcripts now send to chat
+  and Nami's reply is spoken back.
+- Female-preferred browser speech fallback through `VOICE_BROWSER_TTS_VOICE`.
+
+### Notes
+
+- Push-to-talk remains user-gesture only. Wake word, background listening, and
+  realtime voice sessions remain later phases.
+
 ## [0.6.1] - 2026-07-09
 
 ### Added

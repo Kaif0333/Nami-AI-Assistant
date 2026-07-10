@@ -44,6 +44,7 @@ VOICE_TTS_MODEL=canopylabs/orpheus-v1-english
 VOICE_TTS_VOICE=hannah
 VOICE_TTS_RESPONSE_FORMAT=wav
 VOICE_TTS_FALLBACK=browser
+VOICE_BROWSER_TTS_VOICE=female
 ```
 
 Provider rules:
@@ -59,6 +60,11 @@ Provider rules:
 - Browser fallback is not a fake provider. The backend logs the speech request
   and returns `clientSide: true`; the dashboard uses the browser's real
   `speechSynthesis` runtime.
+- Browser fallback prefers installed female-sounding English voices when
+  `VOICE_BROWSER_TTS_VOICE=female`.
+- The Voice page automatically sends a completed push-to-talk transcript to chat
+  and speaks Nami's reply. The text fallback remains available for typed/manual
+  testing.
 
 ## V2
 

@@ -27,8 +27,11 @@
 - Voice page shows the selected STT/TTS provider route.
 - Push-to-talk is the only microphone entry point.
 - No wake word or background recording controls exist.
-- Text fallback can send a typed message to chat.
+- Releasing push-to-talk after speech automatically sends the transcript to chat.
+- Nami's chat reply is spoken automatically when TTS/browser fallback is available.
+- Text fallback can still send a typed message to chat manually.
 - Speech output can use cloud audio or browser speech synthesis fallback.
+- Browser speech synthesis fallback prefers a female-sounding installed voice.
 
 ## Later tests
 

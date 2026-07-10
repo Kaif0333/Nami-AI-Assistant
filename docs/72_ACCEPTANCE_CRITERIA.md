@@ -63,6 +63,8 @@ A phase is complete only when:
 - Push-to-talk starts microphone capture only from explicit user gesture.
 - STT endpoint accepts only supported bounded audio clips.
 - TTS endpoint accepts bounded text input.
+- Completed push-to-talk transcription automatically sends the transcript to chat.
+- Nami's chat reply is automatically spoken when TTS or browser fallback is available.
 - STT returns clear setup errors when no real cloud STT provider is configured.
 - TTS uses real cloud audio when configured or explicit browser speech synthesis fallback.
 - No fake transcript, fake spoken audio, wake word, or background recording is implemented.

@@ -37,6 +37,7 @@ type VoiceState =
   | "requesting_mic"
   | "listening"
   | "transcribing"
+  | "thinking"
   | "speaking"
   | "error";
 
@@ -95,26 +96,121 @@ function getRecorderMimeType(supportedMimeTypes: string[]) {
   );
 }
 
-function speakWithBrowser(text: string, voiceName: string) {
+const preferredFemaleVoiceNames = [
+  "Microsoft Zira",
+  "Microsoft Aria",
+  "Microsoft Jenny",
+  "Microsoft Sonia",
+  "Microsoft Natasha",
+  "Google US English Female",
+  "Google UK English Female",
+  "Samantha",
+  "Victoria",
+  "Karen",
+  "Tessa",
+  "Moira",
+  "Joanna",
+  "Salli",
+  "Kendra"
+];
+
+const preferredFemaleVoiceFragments = [
+  "zira",
+  "aria",
+  "jenny",
+  "sonia",
+  "natasha",
+  "female",
+  "samantha",
+  "victoria",
+  "karen",
+  "tessa",
+  "moira",
+  "joanna",
+  "salli",
+  "kendra"
+];
+
+function getBrowserVoices() {
+  const voices = window.speechSynthesis.getVoices();
+
+  if (!voices.length) {
+    return new Promise<SpeechSynthesisVoice[]>((resolve) => {
+      const timeout = window.setTimeout(() => {
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoices);
+        resolve(window.speechSynthesis.getVoices());
+      }, 800);
+
+      function handleVoices() {
+        window.clearTimeout(timeout);
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoices);
+        resolve(window.speechSynthesis.getVoices());
+      }
+
+      window.speechSynthesis.addEventListener("voiceschanged", handleVoices, {
+        once: true
+      });
+    });
+  }
+
+  return Promise.resolve(voices);
+}
+
+function selectBrowserVoice(voiceName: string, voices: SpeechSynthesisVoice[]) {
+  if (voiceName && voiceName !== "system" && voiceName !== "female") {
+    const exactMatch = voices.find((voice) => voice.name === voiceName);
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const namedMatch = voices.find((voice) =>
+      voice.name.toLowerCase().includes(voiceName.toLowerCase())
+    );
+
+    if (namedMatch) {
+      return namedMatch;
+    }
+  }
+
+  for (const preferredName of preferredFemaleVoiceNames) {
+    const match = voices.find((voice) => voice.name.includes(preferredName));
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return (
+    voices.find((voice) =>
+      preferredFemaleVoiceFragments.some((fragment) =>
+        voice.name.toLowerCase().includes(fragment)
+      )
+    ) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ??
+    voices[0]
+  );
+}
+
+async function speakWithBrowser(text: string, voiceName: string) {
   if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
     return Promise.reject(
       new Error("Browser speech synthesis is not available in this runtime.")
     );
   }
 
+  const voices = await getBrowserVoices();
+
   return new Promise<void>((resolve, reject) => {
     const utterance = new SpeechSynthesisUtterance(text);
+    const selectedVoice = selectBrowserVoice(voiceName, voices);
 
-    if (voiceName && voiceName !== "system") {
-      const matchingVoice = window.speechSynthesis
-        .getVoices()
-        .find((voice) => voice.name === voiceName);
-
-      if (matchingVoice) {
-        utterance.voice = matchingVoice;
-      }
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
 
+    utterance.pitch = 1.12;
+    utterance.rate = 1.02;
     utterance.onend = () => resolve();
     utterance.onerror = () =>
       reject(new Error("Browser speech synthesis failed."));
@@ -322,12 +418,12 @@ export default function VoicePage() {
 
       setTranscript(result.transcript);
       setFallbackDraft(result.transcript);
-      setVoiceState("idle");
       pushTimeline({
         label: "Transcript ready",
         detail: `${result.provider}/${result.model}`,
         status: "ok"
       });
+      await submitMessageToNami(result.transcript, "Voice message");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Voice transcription failed.";
@@ -350,10 +446,15 @@ export default function VoicePage() {
       return;
     }
 
+    await submitMessageToNami(message, "Text fallback");
+  }
+
+  async function submitMessageToNami(message: string, sourceLabel: string) {
     try {
+      setVoiceState("thinking");
       setFallbackReply("");
       pushTimeline({
-        label: "Text fallback sent",
+        label: `${sourceLabel} sent`,
         detail: `${message.length} characters`,
         status: "pending"
       });
@@ -361,18 +462,21 @@ export default function VoicePage() {
 
       setFallbackReply(response.reply);
       pushTimeline({
-        label: "Text fallback answered",
+        label: "Nami answered",
         detail: response.modelRoute
           ? `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}`
           : "No model route returned",
         status: "ok"
       });
+      await playSpeech(response.reply);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Text fallback failed.";
+        error instanceof Error ? error.message : "Nami response failed.";
 
+      setVoiceState("error");
+      setErrorMessage(message);
       pushTimeline({
-        label: "Text fallback failed",
+        label: "Nami response failed",
         detail: message,
         status: "error"
       });
@@ -387,6 +491,10 @@ export default function VoicePage() {
       return;
     }
 
+    await playSpeech(text);
+  }
+
+  async function playSpeech(text: string) {
     try {
       setVoiceState("speaking");
       pushTimeline({
@@ -442,6 +550,7 @@ export default function VoicePage() {
   const isBusy =
     voiceState === "requesting_mic" ||
     voiceState === "transcribing" ||
+    voiceState === "thinking" ||
     voiceState === "speaking";
   const isListening = voiceState === "listening";
   const ttsReady =

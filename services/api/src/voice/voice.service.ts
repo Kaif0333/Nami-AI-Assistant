@@ -61,7 +61,7 @@ const defaultGroqSttModel = "whisper-large-v3-turbo";
 const defaultGroqTtsModel = "canopylabs/orpheus-v1-english";
 const defaultGroqVoice = "hannah";
 const browserTtsModel = "browser-speech-synthesis";
-const browserTtsVoice = "system";
+const defaultBrowserTtsVoice = "female";
 
 @Injectable()
 export class VoiceService {
@@ -265,7 +265,7 @@ export class VoiceService {
       const fallback = this.getBrowserTtsFallback(provider);
 
       if (fallback === "browser") {
-        return this.completeBrowserSpeech(log, browserTtsVoice, {
+        return this.completeBrowserSpeech(log, this.getBrowserTtsVoice(), {
           failedProvider: provider,
           failedModel: model,
           reason: "provider_not_configured"
@@ -282,7 +282,7 @@ export class VoiceService {
     const responseFormat = this.getTtsResponseFormat(provider);
 
     if (responseFormat === "browser") {
-      return this.completeBrowserSpeech(log, browserTtsVoice);
+      return this.completeBrowserSpeech(log, this.getBrowserTtsVoice());
     }
 
     try {
@@ -305,7 +305,7 @@ export class VoiceService {
         const fallback = this.getBrowserTtsFallback(provider);
 
         if (fallback === "browser") {
-          return this.completeBrowserSpeech(log, browserTtsVoice, {
+          return this.completeBrowserSpeech(log, this.getBrowserTtsVoice(), {
             failedProvider: provider,
             failedModel: model,
             status: response.status,
@@ -361,7 +361,7 @@ export class VoiceService {
       const fallback = this.getBrowserTtsFallback(provider);
 
       if (fallback === "browser") {
-        return this.completeBrowserSpeech(log, browserTtsVoice, {
+        return this.completeBrowserSpeech(log, this.getBrowserTtsVoice(), {
           failedProvider: provider,
           failedModel: model,
           reason: "provider_request_failed"
@@ -570,7 +570,14 @@ export class VoiceService {
       return this.config.get<string>("OPENAI_TTS_VOICE")?.trim() || defaultOpenAiVoice;
     }
 
-    return browserTtsVoice;
+    return this.getBrowserTtsVoice();
+  }
+
+  private getBrowserTtsVoice() {
+    return (
+      this.config.get<string>("VOICE_BROWSER_TTS_VOICE")?.trim() ||
+      defaultBrowserTtsVoice
+    );
   }
 
   private getTtsResponseFormat(provider: TtsProvider) {
