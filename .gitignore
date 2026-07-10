@@ -49,6 +49,7 @@ test-results/
 
 # generated local files
 .local/
+.superpowers/
 tmp/
 
 # attached documentation input pack
