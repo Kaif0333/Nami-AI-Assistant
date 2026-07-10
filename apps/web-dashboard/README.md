@@ -2,7 +2,7 @@
 
 Next.js dashboard for Nami.
 
-Current Phase 4 scope:
+Current Phase 5.1 scope:
 
 - Next.js App Router with TypeScript.
 - Tailwind CSS theme tokens.
@@ -12,6 +12,7 @@ Current Phase 4 scope:
 - Approvals page connected to the approval API.
 - Logs page connected to the action-log API.
 - Memory page connected to the memory API for save/search/disable/delete.
+- Voice page connected to push-to-talk STT, TTS, and browser speech fallback APIs.
 
-Voice, n8n, email/calendar, browser automation, screen control, and
-document generation logic are not implemented here yet.
+n8n, email/calendar, browser automation, screen control, file/document ingestion,
+and document generation logic are not implemented here yet.

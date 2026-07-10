@@ -18,11 +18,11 @@ Implement approval and action log system. Add UI for approval cards. Add safe de
 
 ## Phase 4 prompt
 
-Implement memory service with PostgreSQL/Supabase schema and UI for saving/searching memories. Add semantic vector placeholder if pgvector not configured yet.
+Implement memory service with PostgreSQL/Supabase schema, UI for saving/searching memories, bounded chat recall, and natural-language memory commands. Prepare pgvector schema for later semantic retrieval without fake embeddings.
 
 ## Phase 5 prompt
 
-Implement push-to-talk voice abstraction with placeholder providers. Add UI states. Do not add wake word yet.
+Implement push-to-talk voice abstraction with real provider routing and explicit setup errors when no real provider is configured. Add UI states. Do not add wake word or background listening yet.
 
 ## Phase 6 prompt
 

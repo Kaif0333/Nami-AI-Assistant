@@ -59,7 +59,7 @@ const initialMessages: ChatMessage[] = [
   {
     id: "welcome",
     role: "Nami",
-    text: "Phase 2 chat is connected through the local Nami API. I can answer safely, but advanced tools stay locked until their later phases."
+    text: "Chat is connected through the local Nami API. I can answer safely, recall saved memories, and handle simple memory commands while external automation stays gated."
   }
 ];
 
@@ -100,6 +100,22 @@ function formatConversationTime(value: string) {
     hour: "numeric",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function formatResponseTimelineDetail(response: Awaited<ReturnType<typeof sendChatMessage>>) {
+  if (response.modelRoute) {
+    return `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}${
+      response.wasTruncated ? " (provider length stop)" : ""
+    }`;
+  }
+
+  if (response.actions.length) {
+    return response.actions
+      .map((action) => `${action.type} ${action.status}`)
+      .join(", ");
+  }
+
+  return "No actions requested";
 }
 
 export default function ChatPage() {
@@ -292,13 +308,7 @@ export default function ChatPage() {
         {
           id: createId(),
           label: "Nami response received",
-          detail: response.modelRoute
-            ? `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}${
-                response.wasTruncated ? " (provider length stop)" : ""
-              }`
-            : response.actions.length
-              ? `${response.actions.length} action previews`
-              : "No actions requested",
+          detail: formatResponseTimelineDetail(response),
           status: "ok"
         },
         ...current.filter((item) => item.id !== requestEventId)
@@ -336,7 +346,7 @@ export default function ChatPage() {
   return (
     <AppShell
       title="Chat"
-      description="Phase 2 chat flow connected to the local backend API."
+      description="Local chat flow with memory recall and approval-gated actions."
     >
       <div className="grid min-h-[34rem] gap-4 xl:grid-cols-[18rem_1fr_20rem]">
         <Card>

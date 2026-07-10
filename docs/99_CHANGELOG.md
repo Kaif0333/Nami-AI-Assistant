@@ -1,5 +1,57 @@
 # 99 — Changelog
 
+## [0.6.4] - 2026-07-10
+
+### Added
+
+- Phase 4.2 natural-language memory commands in chat.
+- `remember this: ...` can save memories directly through `MemoriesService`.
+- `what do you remember about ...` can search active non-sensitive memories
+  without calling an AI provider.
+- `forget memory about ...` disables one clearly matched memory.
+- `update memory about ... to ...` updates one clearly matched non-sensitive
+  memory.
+- Unit tests for memory save, search, forget, broad-forget blocking, update, and
+  secret-like content rejection.
+
+### Changed
+
+- Chat UI copy now reflects current memory recall/command capabilities instead
+  of the old Phase 2 wording.
+- Chat timeline now shows completed local action types such as `memory_save`
+  instead of generic action-preview text.
+
+### Safety
+
+- Broad memory mutation requests are blocked.
+- Sensitive memories are hidden from chat search and blocked from direct chat
+  update until explicit sensitive-memory confirmation controls exist.
+- Memory commands create sanitized action logs and perform no external action.
+
+## [0.6.3] - 2026-07-10
+
+### Added
+
+- Phase 4.1 memory recall integration for chat responses.
+- Chat now injects a bounded, relevant, active, non-sensitive memory context into
+  provider instructions when saved memories match the user request.
+- Assistant message metadata now records memory recall count and recalled memory
+  IDs without storing full memory content in metadata.
+- Unit coverage for chat memory recall, including disabled and sensitive memory
+  exclusion.
+
+### Changed
+
+- Chat runtime instructions now reflect the current Phase 5.1 state and no
+  longer claim memory recall is unwired.
+
+### Notes
+
+- Recall currently uses keyword scoring. pgvector semantic retrieval remains
+  ready for a later real embedding-provider phase.
+- Nami still cannot browse the web, read arbitrary local files, or control the
+  system until those later gated phases are implemented.
+
 ## [0.6.2] - 2026-07-10
 
 ### Added

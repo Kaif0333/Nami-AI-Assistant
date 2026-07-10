@@ -64,6 +64,43 @@ test("memory page saves and displays a memory through the real API", async ({
   }
 });
 
+test("chat can save a memory through a natural language command", async ({
+  page,
+  request
+}) => {
+  const content = `E2E chat memory command ${Date.now()} prefers short launch notes.`;
+  let createdId: string | undefined;
+
+  try {
+    await page.goto("/chat");
+
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Chat" })
+    ).toBeVisible();
+
+    await page.getByLabel("Message Nami").fill(`Remember this: ${content}`);
+    await page.getByRole("button", { name: /send/i }).click();
+
+    await expect(page.getByText(/Saved this .* memory/i)).toBeVisible();
+
+    const response = await request.get(
+      `http://localhost:4000/api/memories?query=${encodeURIComponent(content)}`
+    );
+    expect(response.ok()).toBe(true);
+
+    const payload = (await response.json()) as MemoryListResponse;
+    const created = payload.data.memories.find((memory) =>
+      memory.title.includes("E2E chat memory command")
+    );
+    expect(created).toBeTruthy();
+    createdId = created?.id;
+  } finally {
+    if (createdId) {
+      await request.delete(`http://localhost:4000/api/memories/${createdId}`);
+    }
+  }
+});
+
 type MemoryListResponse = {
   data: {
     memories: Array<{

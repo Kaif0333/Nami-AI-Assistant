@@ -4,7 +4,13 @@ export type StoredChatRole = "user" | "assistant";
 
 export type ChatAction = {
   type: string;
-  status: "approval_required" | "blocked" | "planned" | "none";
+  status:
+    | "approval_required"
+    | "blocked"
+    | "planned"
+    | "completed"
+    | "failed"
+    | "none";
   summary: string;
   approvalId?: string;
 };

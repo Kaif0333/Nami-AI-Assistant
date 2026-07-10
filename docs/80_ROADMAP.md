@@ -13,7 +13,7 @@ API + chat + basic AI.
 Approval system and action logs.
 
 ## Phase 4 — Memory
-Database + memory center.
+Database + memory center + bounded chat recall + natural-language memory commands.
 
 ## Phase 5 — Voice
 Push-to-talk + STT/TTS abstraction.
