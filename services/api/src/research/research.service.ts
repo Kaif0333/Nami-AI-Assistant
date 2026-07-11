@@ -89,44 +89,33 @@ export class ResearchService {
           model: providerStatus.model
         }
       });
+    } catch {
+      return this.failAuditDependentRun(run, undefined, startedAt, "create");
+    }
+
+    let completed: ResearchRun;
+
+    try {
       const result =
         request.mode === "deep"
           ? await this.runDeepResearch(run.id, request)
           : await this.runFastResearch(run.id, request);
-      const completed = await this.completeRun(run, result);
-      const durationMs = Date.now() - startedAt;
-
-      await this.actionLogs.updateActionLog(actionLog.id, {
-        status: "completed",
-        outputPreview: {
-          status: completed.status,
-          sourceCount: completed.sources.length,
-          warningCount: completed.warnings.length
-        },
-        metadata: this.auditMetadata(completed, durationMs)
-      });
-      this.logger.log(
-        `research.completed id=${completed.id} mode=${completed.mode} status=${completed.status} sources=${completed.sources.length} warnings=${completed.warnings.length} durationMs=${durationMs}`
-      );
-
-      return completed;
+      completed = await this.completeRun(run, result);
     } catch (error) {
       const failed = await this.failRun(run, this.safeErrorMessage(error));
       const durationMs = Date.now() - startedAt;
 
-      if (actionLog) {
-        try {
-          await this.actionLogs.updateActionLog(actionLog.id, {
-            status: "failed",
-            errorMessage: failed.errorMessage,
-            outputPreview: { status: "failed" },
-            metadata: this.auditMetadata(failed, durationMs)
-          });
-        } catch {
-          this.logger.warn(
-            `research.audit_update_failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
-          );
-        }
+      try {
+        await this.actionLogs.updateActionLog(actionLog.id, {
+          status: "failed",
+          errorMessage: failed.errorMessage,
+          outputPreview: { status: "failed" },
+          metadata: this.auditMetadata(failed, durationMs)
+        });
+      } catch {
+        this.logger.warn(
+          `research.audit_update_failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
+        );
       }
       this.logger.warn(
         `research.failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
@@ -142,6 +131,27 @@ export class ResearchService {
         details: { runId: failed.id }
       });
     }
+
+    const durationMs = Date.now() - startedAt;
+
+    try {
+      await this.actionLogs.updateActionLog(actionLog.id, {
+        status: "completed",
+        outputPreview: {
+          status: completed.status,
+          sourceCount: completed.sources.length,
+          warningCount: completed.warnings.length
+        },
+        metadata: this.auditMetadata(completed, durationMs)
+      });
+    } catch {
+      return this.failAuditDependentRun(run, actionLog, startedAt, "complete");
+    }
+    this.logger.log(
+      `research.completed id=${completed.id} mode=${completed.mode} status=${completed.status} sources=${completed.sources.length} warnings=${completed.warnings.length} durationMs=${durationMs}`
+    );
+
+    return completed;
   }
 
   async listResearchRuns(filters: ResearchRunListFilters = {}) {
@@ -346,6 +356,44 @@ export class ResearchService {
     };
 
     return this.persistUpdatedRun(failed);
+  }
+
+  private async failAuditDependentRun(
+    run: ResearchRun,
+    actionLog: Awaited<ReturnType<ActionLogsService["createActionLog"]>> | undefined,
+    startedAt: number,
+    stage: "create" | "complete"
+  ): Promise<never> {
+    const failed = await this.failRun(run, RESEARCH_FAILED_MESSAGE);
+    const durationMs = Date.now() - startedAt;
+
+    if (actionLog) {
+      try {
+        await this.actionLogs.updateActionLog(actionLog.id, {
+          status: "failed",
+          errorMessage: failed.errorMessage,
+          outputPreview: { status: "failed" },
+          metadata: this.auditMetadata(failed, durationMs)
+        });
+      } catch {
+        this.logger.warn(
+          `research.audit_update_failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
+        );
+      }
+    }
+
+    this.logger.warn(
+      `research.audit_${stage}_failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
+    );
+    this.logger.warn(
+      `research.failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
+    );
+
+    throw new ServiceUnavailableException({
+      code: "RESEARCH_FAILED",
+      message: RESEARCH_FAILED_MESSAGE,
+      details: { runId: failed.id }
+    });
   }
 
   private async persistNewRun(run: ResearchRun) {

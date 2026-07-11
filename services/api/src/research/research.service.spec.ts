@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { HttpException } from "@nestjs/common";
 
 import type { ActionLog } from "../action-logs/action-log.types";
 import { ActionLogsService } from "../action-logs/action-logs.service";
@@ -201,9 +202,10 @@ describe("ResearchService", () => {
     assert.equal(runs[0]?.errorMessage, "Research report is invalid.");
   });
 
-  it("marks the running record failed when audit-log creation fails", async () => {
+  it("sanitizes an HttpException from audit-log creation", async () => {
+    const auditSecret = "audit secret token must not be exposed";
     const harness = createHarness({
-      actionLogError: new Error("audit database password exposed")
+      actionLogError: new HttpException({ message: auditSecret }, 503)
     });
 
     await assert.rejects(
@@ -212,7 +214,11 @@ describe("ResearchService", () => {
           query: "current Node release",
           mode: "fast"
         }),
-      /Research failed/
+      (error) => {
+        assert.match(String(error), /Research failed/);
+        assert.doesNotMatch(JSON.stringify(error), /audit secret token/);
+        return true;
+      }
     );
 
     const runs = await harness.service.listResearchRuns({ status: "failed" });
@@ -221,7 +227,36 @@ describe("ResearchService", () => {
     assert.equal(runs[0]?.errorMessage, "Research failed.");
     assert.equal(harness.searchInputs.length, 0);
     assert.equal(harness.updatedLogs.length, 0);
-    assert.doesNotMatch(JSON.stringify(runs), /database password exposed/);
+    assert.doesNotMatch(JSON.stringify(runs), /audit secret token/);
+  });
+
+  it("sanitizes an HttpException from the completed audit transition", async () => {
+    const auditSecret = "audit secret token must not be exposed";
+    const harness = createHarness({
+      updateActionLogError: new HttpException({ message: auditSecret }, 503)
+    });
+
+    await assert.rejects(
+      () =>
+        harness.service.runResearch({
+          query: "current Node release",
+          mode: "fast"
+        }),
+      (error) => {
+        assert.match(String(error), /Research failed/);
+        assert.doesNotMatch(JSON.stringify(error), /audit secret token/);
+        return true;
+      }
+    );
+
+    const failedRuns = await harness.service.listResearchRuns({ status: "failed" });
+    const completedRuns = await harness.service.listResearchRuns({ status: "completed" });
+    assert.equal(failedRuns.length, 1);
+    assert.equal(failedRuns[0]?.status, "failed");
+    assert.equal(failedRuns[0]?.errorMessage, "Research failed.");
+    assert.equal(completedRuns.length, 0);
+    assert.equal(harness.updatedLogs.length, 0);
+    assert.doesNotMatch(JSON.stringify(failedRuns), /audit secret token/);
   });
 
   it("lists at most 50 newest matching runs and gets a run by id", async () => {
