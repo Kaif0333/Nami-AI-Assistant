@@ -536,6 +536,37 @@ describe("ChatService conversation history", () => {
       assert.equal(serialized.includes(pathSecret), false);
     }
   });
+
+  it("redacts encoded-backslash secret-like research source paths before returning and storing them", async () => {
+    const encodedPath = encodeURIComponent("credentials\\token\\private-value");
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: [
+        {
+          ...createResearchRun(mode).sources[0],
+          url: `https://nodejs.org/${encodedPath}`
+        }
+      ]
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+
+    for (const metadata of [response.research, storedResearch]) {
+      const serialized = JSON.stringify(metadata);
+
+      assert.equal(serialized.includes("credentials"), false);
+      assert.equal(serialized.includes("token"), false);
+      assert.equal(serialized.includes("private-value"), false);
+    }
+  });
 });
 
 function createChatService(
