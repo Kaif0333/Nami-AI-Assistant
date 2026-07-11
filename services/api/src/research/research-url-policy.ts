@@ -8,12 +8,16 @@ const MAX_RESEARCH_URLS = 5;
 const allowedProtocols = new Set(["http:", "https:"]);
 const allowedPorts = new Set(["", "80", "443"]);
 const blockedHostnameSuffixes = [
+  ".test",
+  ".invalid",
   ".localhost",
   ".local",
   ".internal",
   ".lan",
   ".home",
-  ".corp"
+  ".corp",
+  ".home.arpa",
+  ".onion"
 ];
 
 export function validateResearchUrls(urls: string[]): string[] {
@@ -41,7 +45,9 @@ function normalizePublicResearchUrl(value: string): string {
     Boolean(url.username || url.password) ||
     hostname === "localhost" ||
     !hostname.includes(".") ||
-    blockedHostnameSuffixes.some((suffix) => hostname.endsWith(suffix)) ||
+    blockedHostnameSuffixes.some(
+      (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+    ) ||
     isIP(hostname) !== 0
   ) {
     throw urlNotAllowed();
