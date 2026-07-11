@@ -304,6 +304,21 @@ Current result.
       ].join("\n")
     ];
 
+    invalidReports.push(
+      [
+        "## Summary",
+        "...",
+        "## Key Findings",
+        "- !!!",
+        "## Recommendations",
+        "- ???",
+        "## Risks",
+        "- ...",
+        "## Action Plan",
+        "- !!!"
+      ].join("\n")
+    );
+
     for (const summaryMarker of ["-", "*", "+"]) {
       invalidReports.push(
         [

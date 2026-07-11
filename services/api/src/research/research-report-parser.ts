@@ -64,14 +64,14 @@ export function parseResearchReport(markdown: string): ResearchReport {
 function sectionText(sections: Map<SectionName, string[]>, name: SectionName) {
   return (sections.get(name) ?? [])
     .map((line) => normalizeMarkdownLine(line))
-    .filter(Boolean)
+    .filter(hasMeaningfulContent)
     .join("\n");
 }
 
 function sectionItems(sections: Map<SectionName, string[]>, name: SectionName) {
   return (sections.get(name) ?? [])
     .map(normalizeMarkdownLine)
-    .filter(Boolean);
+    .filter(hasMeaningfulContent);
 }
 
 function normalizeMarkdownLine(line: string) {
@@ -79,6 +79,10 @@ function normalizeMarkdownLine(line: string) {
     .trim()
     .replace(/^(?:[-*+]\s*|\d+[.)]\s*)/, "")
     .trim();
+}
+
+function hasMeaningfulContent(value: string) {
+  return /[a-z0-9]/i.test(value);
 }
 
 function invalidReport() {
