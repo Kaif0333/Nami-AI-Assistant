@@ -146,6 +146,32 @@ describe("ResearchService", () => {
     assert.doesNotMatch(JSON.stringify(harness.updatedLogs), /internal diagnostic detail/);
   });
 
+  it("preserves the sanitized research failure when the failed audit update fails", async () => {
+    const harness = createHarness({
+      evidence: [new Error("provider internal diagnostic detail")],
+      updateActionLogError: new Error("audit database password exposed")
+    });
+
+    await assert.rejects(
+      () =>
+        harness.service.runResearch({
+          query: "current Node release",
+          mode: "fast"
+        }),
+      (error) => {
+        assert.match(String(error), /Research failed/);
+        assert.doesNotMatch(String(error), /audit database password exposed/);
+        return true;
+      }
+    );
+
+    const runs = await harness.service.listResearchRuns({ status: "failed" });
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0]?.status, "failed");
+    assert.equal(runs[0]?.errorMessage, "Research failed.");
+    assert.equal(harness.updatedLogs.length, 0);
+  });
+
   it("persists a failed run when a grounded report has empty required sections", async () => {
     const harness = createHarness({
       evidence: [
@@ -249,6 +275,7 @@ function createHarness(options: {
   actionLogError?: Error;
   aiResponses?: string[];
   evidence?: Array<ResearchEvidence | Error>;
+  updateActionLogError?: Error;
 } = {}) {
   const searchInputs: GroundedSearchInput[] = [];
   const aiInputs: GenerateTextInput[] = [];
@@ -307,6 +334,10 @@ function createHarness(options: {
       return { id: "action-log-id", ...input };
     },
     async updateActionLog(_id: string, updates: Partial<ActionLog>) {
+      if (options.updateActionLogError) {
+        throw options.updateActionLogError;
+      }
+
       updatedLogs.push(updates);
       return updates;
     }

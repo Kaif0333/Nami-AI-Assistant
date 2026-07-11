@@ -115,12 +115,18 @@ export class ResearchService {
       const durationMs = Date.now() - startedAt;
 
       if (actionLog) {
-        await this.actionLogs.updateActionLog(actionLog.id, {
-          status: "failed",
-          errorMessage: failed.errorMessage,
-          outputPreview: { status: "failed" },
-          metadata: this.auditMetadata(failed, durationMs)
-        });
+        try {
+          await this.actionLogs.updateActionLog(actionLog.id, {
+            status: "failed",
+            errorMessage: failed.errorMessage,
+            outputPreview: { status: "failed" },
+            metadata: this.auditMetadata(failed, durationMs)
+          });
+        } catch {
+          this.logger.warn(
+            `research.audit_update_failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
+          );
+        }
       }
       this.logger.warn(
         `research.failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`

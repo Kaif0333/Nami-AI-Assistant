@@ -62,14 +62,23 @@ export function parseResearchReport(markdown: string): ResearchReport {
 }
 
 function sectionText(sections: Map<SectionName, string[]>, name: SectionName) {
-  return (sections.get(name) ?? []).join("\n").trim();
+  return (sections.get(name) ?? [])
+    .map((line) => normalizeMarkdownLine(line))
+    .filter(Boolean)
+    .join("\n");
 }
 
 function sectionItems(sections: Map<SectionName, string[]>, name: SectionName) {
   return (sections.get(name) ?? [])
-    .map((line) => line.trim())
-    .map((line) => line.replace(/^(?:[-*+]\s*|\d+[.)]\s*)/, "").trim())
+    .map(normalizeMarkdownLine)
     .filter(Boolean);
+}
+
+function normalizeMarkdownLine(line: string) {
+  return line
+    .trim()
+    .replace(/^(?:[-*+]\s*|\d+[.)]\s*)/, "")
+    .trim();
 }
 
 function invalidReport() {

@@ -304,6 +304,23 @@ Current result.
       ].join("\n")
     ];
 
+    for (const summaryMarker of ["-", "*", "+"]) {
+      invalidReports.push(
+        [
+          "## Summary",
+          summaryMarker,
+          "## Key Findings",
+          "- Finding one",
+          "## Recommendations",
+          "- Recommendation one",
+          "## Risks",
+          "- Risk one",
+          "## Action Plan",
+          "- Action one"
+        ].join("\n")
+      );
+    }
+
     for (const markdown of invalidReports) {
       assert.throws(
         () => parseResearchReport(markdown),
