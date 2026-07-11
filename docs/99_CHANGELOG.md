@@ -12,8 +12,8 @@
 
 ### Safety
 
-- Research URL validation blocks private, reserved, documentation, multicast,
-  and IPv4-mapped IPv6 destinations before provider requests.
+- Research URL validation blocks every literal IPv4, IPv6, and IPv4-mapped
+  IPv6 host before provider requests.
 - No live Gemini request, mock provider, or synthetic research response was
   added as part of this provider slice.
 
