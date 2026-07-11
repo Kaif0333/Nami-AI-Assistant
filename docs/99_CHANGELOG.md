@@ -1,5 +1,22 @@
 # 99 — Changelog
 
+## [0.6.5] - 2026-07-11
+
+### Added
+
+- Phase 6 research work in progress: grounded Gemini research provider
+  primitives with public URL validation, deterministic intent classification,
+  source normalization, and structured report parsing.
+- Gemini `generateContent` adapter support for grounded web search and optional
+  URL context using configured real provider credentials.
+
+### Safety
+
+- Research URL validation blocks private, reserved, documentation, multicast,
+  and IPv4-mapped IPv6 destinations before provider requests.
+- No live Gemini request, mock provider, or synthetic research response was
+  added as part of this provider slice.
+
 ## [0.6.4] - 2026-07-10
 
 ### Added
