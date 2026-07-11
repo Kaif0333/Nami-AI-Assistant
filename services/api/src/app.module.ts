@@ -8,6 +8,7 @@ import { getEnvFilePaths } from "./config/env";
 import { DatabaseModule } from "./database/database.module";
 import { HealthController } from "./health/health.controller";
 import { MemoriesModule } from "./memories/memories.module";
+import { ResearchModule } from "./research/research.module";
 import { VoiceModule } from "./voice/voice.module";
 
 @Module({
@@ -21,6 +22,7 @@ import { VoiceModule } from "./voice/voice.module";
     ChatModule,
     DatabaseModule,
     MemoriesModule,
+    ResearchModule,
     VoiceModule
   ],
   controllers: [HealthController]
