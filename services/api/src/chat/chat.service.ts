@@ -46,6 +46,12 @@ const maxAutoContinuationSteps = 6;
 const maxRecalledMemories = 5;
 const maxMemoryContextCharacters = 1800;
 const maxMemoryExcerptCharacters = 320;
+const maxResearchMetadataSources = 5;
+const maxResearchMetadataWarnings = 5;
+const maxResearchMetadataTitleCharacters = 160;
+const maxResearchMetadataDomainCharacters = 120;
+const maxResearchMetadataUrlCharacters = 500;
+const maxResearchMetadataWarningCharacters = 300;
 
 type MemoryRecall = {
   context: string;
@@ -1153,13 +1159,66 @@ function toChatResearchMetadata(run: ResearchRun): ChatResearchMetadata {
     runId: run.id,
     mode: run.mode,
     status: run.status,
-    sources: run.sources.map(({ title, url, domain }) => ({
-      title,
-      url,
-      domain
-    })),
+    sources: run.sources
+      .flatMap(sanitizeChatResearchSource)
+      .slice(0, maxResearchMetadataSources),
     warnings: run.warnings
+      .slice(0, maxResearchMetadataWarnings)
+      .map((warning) =>
+        truncateChatResearchMetadataText(
+          warning,
+          maxResearchMetadataWarningCharacters
+        )
+      )
   };
+}
+
+function sanitizeChatResearchSource(source: ResearchRun["sources"][number]) {
+  const url = sanitizeChatResearchUrl(source.url);
+
+  if (!url) {
+    return [];
+  }
+
+  return [
+    {
+      title: truncateChatResearchMetadataText(
+        source.title,
+        maxResearchMetadataTitleCharacters
+      ),
+      url,
+      domain: truncateChatResearchMetadataText(
+        new URL(url).hostname,
+        maxResearchMetadataDomainCharacters
+      )
+    }
+  ];
+}
+
+function sanitizeChatResearchUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+
+    const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
+
+    if (pathnameLimit < 1) {
+      return undefined;
+    }
+
+    return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function truncateChatResearchMetadataText(value: string, limit: number) {
+  const normalized = value.replaceAll(/\s+/g, " ").trim();
+
+  return normalized.length > limit ? normalized.slice(0, limit) : normalized;
 }
 
 function formatResearchReply(run: ResearchRun) {

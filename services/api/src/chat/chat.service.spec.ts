@@ -420,6 +420,48 @@ describe("ChatService conversation history", () => {
       warnings: []
     });
   });
+
+  it("caps and sanitizes research metadata before returning and storing it", async () => {
+    const longTitle = "Research source ".repeat(20);
+    const longDomain = "subdomain.".repeat(20) + "example.com";
+    const longPath = "a".repeat(600);
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: Array.from({ length: 8 }, (_, index) => ({
+        ...createResearchRun(mode).sources[0],
+        id: `research-source-${index}`,
+        title: longTitle,
+        url: `https://example${index}.com/${longPath}?token=secret-${index}&api_key=private-${index}#fragment`,
+        domain: longDomain
+      })),
+      warnings: Array.from({ length: 8 }, () => "Warning ".repeat(80))
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.equal(response.research?.sources.length, 5);
+    assert.equal(response.research?.warnings.length, 5);
+    assert.deepEqual(storedResearch, response.research);
+    assert.equal(JSON.stringify(response.research).includes("secret-"), false);
+    assert.equal(JSON.stringify(response.research).includes("private-"), false);
+
+    for (const source of response.research?.sources ?? []) {
+      assert.ok(source.title.length <= 160);
+      assert.ok(source.domain.length <= 120);
+      assert.ok(source.url.length <= 500);
+      assert.doesNotMatch(source.url, /[?#]/);
+    }
+
+    for (const warning of response.research?.warnings ?? []) {
+      assert.ok(warning.length <= 300);
+    }
+  });
 });
 
 function createChatService(
@@ -483,11 +525,14 @@ function createPolicy(
   } as SafeActionPolicyService;
 }
 
-function createResearchService(capturedInputs: ResearchRequestInput[]) {
+function createResearchService(
+  capturedInputs: ResearchRequestInput[],
+  createRun: (mode: ResearchRun["mode"]) => ResearchRun = createResearchRun
+) {
   return {
     async runResearch(input: ResearchRequestInput) {
       capturedInputs.push(input);
-      return createResearchRun(input.mode);
+      return createRun(input.mode);
     }
   } as ResearchService;
 }

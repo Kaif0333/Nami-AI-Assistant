@@ -10,6 +10,13 @@ export type ChatResearchMetadata = {
   warnings: string[];
 };
 
+const maxResearchMetadataSources = 5;
+const maxResearchMetadataWarnings = 5;
+const maxResearchMetadataTitleCharacters = 160;
+const maxResearchMetadataDomainCharacters = 120;
+const maxResearchMetadataUrlCharacters = 500;
+const maxResearchMetadataWarningCharacters = 300;
+
 export type ChatResponseData = {
   reply: string;
   conversationId: string;
@@ -292,36 +299,83 @@ function parseChatResearchMetadata(value: unknown) {
     return undefined;
   }
 
-  const parsedSources = sources.flatMap((source) => {
-    if (
-      !isRecord(source) ||
-      typeof source.title !== "string" ||
-      typeof source.url !== "string" ||
-      typeof source.domain !== "string"
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        title: source.title,
-        url: source.url,
-        domain: source.domain
-      }
-    ];
-  });
-
-  if (parsedSources.length !== sources.length) {
-    return undefined;
-  }
+  const parsedSources = sources
+    .flatMap(sanitizeChatResearchSource)
+    .slice(0, maxResearchMetadataSources);
+  const parsedWarnings = warnings
+    .filter((warning): warning is string => typeof warning === "string")
+    .slice(0, maxResearchMetadataWarnings)
+    .map((warning) =>
+      truncateChatResearchMetadataText(
+        warning,
+        maxResearchMetadataWarningCharacters
+      )
+    );
 
   return {
     runId,
     mode,
     status,
     sources: parsedSources,
-    warnings
+    warnings: parsedWarnings
   } satisfies ChatResearchMetadata;
+}
+
+function sanitizeChatResearchSource(value: unknown) {
+  if (
+    !isRecord(value) ||
+    typeof value.title !== "string" ||
+    typeof value.url !== "string" ||
+    typeof value.domain !== "string"
+  ) {
+    return [];
+  }
+
+  const url = sanitizeChatResearchUrl(value.url);
+
+  if (!url) {
+    return [];
+  }
+
+  return [
+    {
+      title: truncateChatResearchMetadataText(
+        value.title,
+        maxResearchMetadataTitleCharacters
+      ),
+      url,
+      domain: truncateChatResearchMetadataText(
+        new URL(url).hostname,
+        maxResearchMetadataDomainCharacters
+      )
+    }
+  ];
+}
+
+function sanitizeChatResearchUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+
+    const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
+
+    if (pathnameLimit < 1) {
+      return undefined;
+    }
+
+    return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function truncateChatResearchMetadataText(value: string, limit: number) {
+  const normalized = value.replaceAll(/\s+/g, " ").trim();
+
+  return normalized.length > limit ? normalized.slice(0, limit) : normalized;
 }
 
 function isResearchStatus(
