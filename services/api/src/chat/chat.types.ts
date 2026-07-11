@@ -1,4 +1,5 @@
 import { ModelRoute } from "../ai/ai-provider.types";
+import type { ResearchMode, ResearchStatus } from "../research/research.types";
 
 export type StoredChatRole = "user" | "assistant";
 
@@ -15,12 +16,25 @@ export type ChatAction = {
   approvalId?: string;
 };
 
+export type ChatResearchMetadata = {
+  runId: string;
+  mode: ResearchMode;
+  status: ResearchStatus;
+  sources: Array<{
+    title: string;
+    url: string;
+    domain: string;
+  }>;
+  warnings: string[];
+};
+
 export type ChatResponseData = {
   reply: string;
   conversationId: string;
   actions: ChatAction[];
   finishReason?: string;
   modelRoute?: ModelRoute;
+  research?: ChatResearchMetadata;
   wasTruncated?: boolean;
 };
 

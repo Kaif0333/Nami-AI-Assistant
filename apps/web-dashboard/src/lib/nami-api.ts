@@ -1,3 +1,15 @@
+export type ChatResearchMetadata = {
+  runId: string;
+  mode: "fast" | "deep";
+  status: "pending" | "running" | "completed" | "partial" | "failed";
+  sources: Array<{
+    title: string;
+    url: string;
+    domain: string;
+  }>;
+  warnings: string[];
+};
+
 export type ChatResponseData = {
   reply: string;
   conversationId: string;
@@ -12,6 +24,7 @@ export type ChatResponseData = {
     provider: string;
     model: string;
   };
+  research?: ChatResearchMetadata;
   wasTruncated?: boolean;
 };
 
@@ -22,6 +35,7 @@ export type ChatStoredMessage = {
   content: string;
   createdAt: string;
   metadata: Record<string, unknown>;
+  research?: ChatResearchMetadata;
 };
 
 export type ChatConversationSummary = {
@@ -247,7 +261,79 @@ export async function listChatConversations() {
 }
 
 export async function getChatConversation(id: string) {
-  return apiRequest<ChatConversationDetail>(`/chat/conversations/${id}`);
+  const conversation = await apiRequest<ChatConversationDetail>(
+    `/chat/conversations/${id}`
+  );
+
+  return {
+    ...conversation,
+    messages: conversation.messages.map((message) => ({
+      ...message,
+      research: parseChatResearchMetadata(message.metadata.research)
+    }))
+  };
+}
+
+function parseChatResearchMetadata(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const { runId, mode, status, sources, warnings } = value;
+
+  if (
+    typeof runId !== "string" ||
+    (mode !== "fast" && mode !== "deep") ||
+    !isResearchStatus(status) ||
+    !Array.isArray(sources) ||
+    !Array.isArray(warnings) ||
+    !warnings.every((warning) => typeof warning === "string")
+  ) {
+    return undefined;
+  }
+
+  const parsedSources = sources.flatMap((source) => {
+    if (
+      !isRecord(source) ||
+      typeof source.title !== "string" ||
+      typeof source.url !== "string" ||
+      typeof source.domain !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        title: source.title,
+        url: source.url,
+        domain: source.domain
+      }
+    ];
+  });
+
+  if (parsedSources.length !== sources.length) {
+    return undefined;
+  }
+
+  return {
+    runId,
+    mode,
+    status,
+    sources: parsedSources,
+    warnings
+  } satisfies ChatResearchMetadata;
+}
+
+function isResearchStatus(
+  value: unknown
+): value is ChatResearchMetadata["status"] {
+  return ["pending", "running", "completed", "partial", "failed"].includes(
+    value as ChatResearchMetadata["status"]
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export async function listApprovals(filters?: {

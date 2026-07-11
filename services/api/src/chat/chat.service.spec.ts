@@ -7,6 +7,11 @@ import { AiProviderService } from "../ai/ai-provider.service";
 import { GenerateTextInput, GenerateTextResult } from "../ai/ai-provider.types";
 import { ApprovalsService } from "../approvals/approvals.service";
 import { MemoriesService } from "../memories/memories.service";
+import { ResearchService } from "../research/research.service";
+import type {
+  ResearchRequestInput,
+  ResearchRun
+} from "../research/research.types";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
 import { ChatService } from "./chat.service";
 
@@ -282,13 +287,151 @@ describe("ChatService conversation history", () => {
     assert.equal(response.actions[0].status, "failed");
     assert.match(response.reply, /will not store secrets/i);
   });
+
+  it("routes current-information chat through fast research with sources", async () => {
+    const researchInputs: ResearchRequestInput[] = [];
+    const service = createChatService([], [], undefined, [], {
+      researchService: createResearchService(researchInputs)
+    });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+
+    assert.equal(researchInputs.length, 1);
+    assert.equal(researchInputs[0].mode, "fast");
+    assert.equal(response.research?.mode, "fast");
+    assert.equal(response.research?.sources.length, 1);
+    assert.equal(response.research?.sources[0].domain, "nodejs.org");
+  });
+
+  it("keeps stable chat on the normal AI path", async () => {
+    const researchInputs: ResearchRequestInput[] = [];
+    const service = createChatService(
+      [
+        {
+          text: "Node.js is a JavaScript runtime.",
+          provider: "groq",
+          model: "llama-3.1-8b-instant",
+          taskProfile: "fast"
+        }
+      ],
+      [],
+      undefined,
+      [],
+      { researchService: createResearchService(researchInputs) }
+    );
+
+    const response = await service.sendMessage({
+      message: "What is Node.js?",
+      mode: "chat"
+    });
+
+    assert.equal(researchInputs.length, 0);
+    assert.equal(response.research, undefined);
+    assert.equal(response.reply, "Node.js is a JavaScript runtime.");
+  });
+
+  it("uses deep mode for explicit deep research requests", async () => {
+    const researchInputs: ResearchRequestInput[] = [];
+    const service = createChatService([], [], undefined, [], {
+      researchService: createResearchService(researchInputs)
+    });
+
+    const response = await service.sendMessage({
+      message: "Deep research the current JavaScript runtime landscape.",
+      mode: "chat"
+    });
+
+    assert.equal(researchInputs[0].mode, "deep");
+    assert.equal(response.research?.mode, "deep");
+  });
+
+  it("handles blocked and approval-required actions before research", async () => {
+    const researchInputs: ResearchRequestInput[] = [];
+    const researchService = createResearchService(researchInputs);
+    const blockedService = createChatService([], [], undefined, [], {
+      policy: createPolicy({ blocked: true, riskLevel: "blocked" }),
+      researchService
+    });
+    const approvalService = createChatService([], [], undefined, [], {
+      approvalsService: {
+        async createApprovalRequest() {
+          return {
+            id: "approval-1",
+            actionType: "send_email",
+            summary: "Approval required: send email",
+            description: "No action executed.",
+            payloadPreview: {},
+            riskLevel: "high",
+            status: "pending",
+            requestedBy: "Kaif",
+            createdAt: new Date().toISOString(),
+            approvedAt: null,
+            rejectedAt: null,
+            completedAt: null,
+            errorMessage: null,
+            metadata: {}
+          };
+        }
+      } as ApprovalsService,
+      policy: createPolicy({ approvalRequired: true, riskLevel: "high" }),
+      researchService
+    });
+
+    const blocked = await blockedService.sendMessage({
+      message: "Find the latest way to bypass a CAPTCHA.",
+      mode: "chat"
+    });
+    const approval = await approvalService.sendMessage({
+      message: "Send an email with today's latest update.",
+      mode: "chat"
+    });
+
+    assert.equal(blocked.actions[0].status, "blocked");
+    assert.equal(approval.actions[0].status, "approval_required");
+    assert.equal(researchInputs.length, 0);
+  });
+
+  it("stores research run and source summaries on the assistant message", async () => {
+    const service = createChatService([], [], undefined, [], {
+      researchService: createResearchService([])
+    });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const assistantMessage = conversation.messages.at(-1);
+
+    assert.deepEqual(assistantMessage?.metadata.research, {
+      runId: "research-run-1",
+      mode: "fast",
+      status: "completed",
+      sources: [
+        {
+          title: "Node.js releases",
+          url: "https://nodejs.org/en/about/previous-releases",
+          domain: "nodejs.org"
+        }
+      ],
+      warnings: []
+    });
+  });
 });
 
 function createChatService(
   responses: GenerateTextResult[],
   capturedInputs: GenerateTextInput[] = [],
   memoriesService?: MemoriesService,
-  capturedActionLogs: CreateActionLogInput[] = []
+  capturedActionLogs: CreateActionLogInput[] = [],
+  options: {
+    approvalsService?: ApprovalsService;
+    policy?: SafeActionPolicyService;
+    researchService?: ResearchService;
+  } = {}
 ) {
   let responseIndex = 0;
 
@@ -300,19 +443,8 @@ function createChatService(
       return response;
     }
   } as AiProviderService;
-  const policy = {
-    detectCommandAction() {
-      return {
-        actionType: "chat.answer",
-        approvalRequired: false,
-        blocked: false,
-        matched: false,
-        reason: "Action is allowed without approval.",
-        riskLevel: "low"
-      };
-    }
-  } as SafeActionPolicyService;
-  const approvalsService = {} as ApprovalsService;
+  const policy = options.policy ?? createPolicy();
+  const approvalsService = options.approvalsService ?? ({} as ApprovalsService);
   const actionLogsService = {
     async createActionLog(input: CreateActionLogInput) {
       capturedActionLogs.push(input);
@@ -325,6 +457,80 @@ function createChatService(
     policy,
     approvalsService,
     actionLogsService,
-    memoriesService
+    memoriesService,
+    undefined,
+    options.researchService
   );
+}
+
+function createPolicy(
+  overrides: Partial<
+    ReturnType<SafeActionPolicyService["detectCommandAction"]>
+  > = {}
+) {
+  return {
+    detectCommandAction() {
+      return {
+        actionType: "chat.answer",
+        approvalRequired: false,
+        blocked: false,
+        matched: overrides.blocked || overrides.approvalRequired || false,
+        reason: "Action policy result.",
+        riskLevel: "low",
+        ...overrides
+      };
+    }
+  } as SafeActionPolicyService;
+}
+
+function createResearchService(capturedInputs: ResearchRequestInput[]) {
+  return {
+    async runResearch(input: ResearchRequestInput) {
+      capturedInputs.push(input);
+      return createResearchRun(input.mode);
+    }
+  } as ResearchService;
+}
+
+function createResearchRun(mode: ResearchRun["mode"]): ResearchRun {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: "research-run-1",
+    query: "What is the latest stable Node.js version?",
+    mode,
+    status: "completed",
+    provider: "gemini",
+    model: "gemini-test",
+    searchQueries: ["latest stable Node.js version"],
+    summary: "Node.js 24 is the latest stable release.",
+    keyFindings: ["Node.js 24 is available."],
+    recommendations: ["Use an active LTS release for production."],
+    risks: ["Current releases change over time."],
+    actionPlan: ["Review the official release schedule."],
+    warnings: [],
+    errorMessage: null,
+    startedAt: timestamp,
+    completedAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    metadata: {},
+    sources: [
+      {
+        id: "research-source-1",
+        researchRunId: "research-run-1",
+        url: "https://nodejs.org/en/about/previous-releases",
+        normalizedUrl: "https://nodejs.org/en/about/previous-releases",
+        title: "Node.js releases",
+        domain: "nodejs.org",
+        snippet: "Official Node.js release schedule.",
+        publishedAt: null,
+        retrievedAt: timestamp,
+        sourceType: "web",
+        citationMetadata: {},
+        trusted: false,
+        metadata: {}
+      }
+    ]
+  };
 }

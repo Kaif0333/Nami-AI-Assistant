@@ -5,6 +5,7 @@ import { AiModule } from "../ai/ai.module";
 import { ApprovalsModule } from "../approvals/approvals.module";
 import { DatabaseModule } from "../database/database.module";
 import { MemoriesModule } from "../memories/memories.module";
+import { ResearchModule } from "../research/research.module";
 import { SafetyModule } from "../safety/safety.module";
 import { ChatController } from "./chat.controller";
 import { ChatService } from "./chat.service";
@@ -16,6 +17,7 @@ import { ChatService } from "./chat.service";
     ApprovalsModule,
     DatabaseModule,
     MemoriesModule,
+    ResearchModule,
     SafetyModule
   ],
   controllers: [ChatController],

@@ -25,11 +25,15 @@ import type {
   MemorySensitivity,
   MemoryType
 } from "../memories/memory.types";
+import { classifyResearchIntent } from "../research/research-intent-classifier";
+import { ResearchService } from "../research/research.service";
+import type { ResearchRun } from "../research/research.types";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
 import {
   ChatConversationDetail,
   ChatConversationSummary,
   ChatMessageRecord,
+  ChatResearchMetadata,
   ChatResponseData,
   StoredChatRole
 } from "./chat.types";
@@ -89,7 +93,10 @@ export class ChatService {
     private readonly memoriesService?: MemoriesService,
     @Optional()
     @Inject(DatabaseService)
-    private readonly database?: DatabaseService
+    private readonly database?: DatabaseService,
+    @Optional()
+    @Inject(ResearchService)
+    private readonly researchService?: ResearchService
   ) {}
 
   async sendMessage(input: ChatRequestDto): Promise<ChatResponseData> {
@@ -198,6 +205,33 @@ export class ChatService {
             approvalId: approval.id
           }
         ]
+      };
+    }
+
+    const researchIntent = classifyResearchIntent(message);
+
+    if (researchIntent.matched && this.researchService) {
+      const run = await this.researchService.runResearch({
+        query: message,
+        mode: researchIntent.mode,
+        urls: researchIntent.urls
+      });
+      const research = toChatResearchMetadata(run);
+      const reply = formatResearchReply(run);
+
+      await this.recordConversationTurn(conversationId, message, reply, {
+        research
+      });
+
+      this.logger.log(
+        `chat.research_response conversationId=${conversationId} runId=${run.id} mode=${run.mode} status=${run.status} sources=${run.sources.length}`
+      );
+
+      return {
+        reply,
+        conversationId,
+        actions: [],
+        research
       };
     }
 
@@ -1112,6 +1146,35 @@ function createPreview(message: string) {
   const normalized = message.replaceAll(/\s+/g, " ").trim();
 
   return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+}
+
+function toChatResearchMetadata(run: ResearchRun): ChatResearchMetadata {
+  return {
+    runId: run.id,
+    mode: run.mode,
+    status: run.status,
+    sources: run.sources.map(({ title, url, domain }) => ({
+      title,
+      url,
+      domain
+    })),
+    warnings: run.warnings
+  };
+}
+
+function formatResearchReply(run: ResearchRun) {
+  return [
+    "## Summary",
+    run.summary,
+    formatResearchSection("Key Findings", run.keyFindings),
+    formatResearchSection("Recommendations", run.recommendations),
+    formatResearchSection("Risks", run.risks),
+    formatResearchSection("Action Plan", run.actionPlan)
+  ].join("\n\n");
+}
+
+function formatResearchSection(title: string, items: string[]) {
+  return [`## ${title}`, ...items.map((item) => `- ${item}`)].join("\n");
 }
 
 function createMemoryTitle(content: string) {
