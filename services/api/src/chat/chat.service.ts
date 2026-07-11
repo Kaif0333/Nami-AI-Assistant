@@ -18,6 +18,7 @@ import {
 } from "../ai/ai-provider.types";
 import { classifyAiTaskProfile } from "../ai/model-router";
 import { ApprovalsService } from "../approvals/approvals.service";
+import { sanitizePreview } from "../common/sanitize-preview";
 import { DatabaseService } from "../database/database.service";
 import { MemoriesService } from "../memories/memories.service";
 import type {
@@ -52,6 +53,10 @@ const maxResearchMetadataTitleCharacters = 160;
 const maxResearchMetadataDomainCharacters = 120;
 const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
+const secretLikeResearchPathPattern =
+  /(?:^|\/)(?:api[_-]?key|secrets?|(?:access[_-]?)?tokens?|passwords?|credentials?|authorization|cookie)(?:[\/:=]|$)/i;
+const secretLikeResearchValuePattern =
+  /(api[_ -]?key|secret|token|password|credential|authorization|cookie)\s*[:=]\s*\S+/i;
 
 type MemoryRecall = {
   context: string;
@@ -1165,7 +1170,7 @@ function toChatResearchMetadata(run: ResearchRun): ChatResearchMetadata {
     warnings: run.warnings
       .slice(0, maxResearchMetadataWarnings)
       .map((warning) =>
-        truncateChatResearchMetadataText(
+        redactChatResearchMetadataText(
           warning,
           maxResearchMetadataWarningCharacters
         )
@@ -1182,12 +1187,12 @@ function sanitizeChatResearchSource(source: ResearchRun["sources"][number]) {
 
   return [
     {
-      title: truncateChatResearchMetadataText(
+      title: redactChatResearchMetadataText(
         source.title,
         maxResearchMetadataTitleCharacters
       ),
       url,
-      domain: truncateChatResearchMetadataText(
+      domain: redactChatResearchMetadataText(
         new URL(url).hostname,
         maxResearchMetadataDomainCharacters
       )
@@ -1203,15 +1208,51 @@ function sanitizeChatResearchUrl(value: string) {
       return undefined;
     }
 
+    if (isSecretLikeResearchValue(parsed.hostname)) {
+      return undefined;
+    }
+
     const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
 
     if (pathnameLimit < 1) {
       return undefined;
     }
 
+    const pathname = decodeResearchPathname(parsed.pathname);
+
+    if (
+      isSecretLikeResearchValue(pathname) ||
+      secretLikeResearchPathPattern.test(pathname)
+    ) {
+      return parsed.origin;
+    }
+
     return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
   } catch {
     return undefined;
+  }
+}
+
+function redactChatResearchMetadataText(value: string, limit: number) {
+  if (isSecretLikeResearchValue(value)) {
+    return "[redacted]";
+  }
+
+  return truncateChatResearchMetadataText(value, limit);
+}
+
+function isSecretLikeResearchValue(value: string) {
+  return (
+    sanitizePreview(value) === "[redacted]" ||
+    secretLikeResearchValuePattern.test(value)
+  );
+}
+
+function decodeResearchPathname(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
 

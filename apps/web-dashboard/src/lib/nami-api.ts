@@ -16,6 +16,10 @@ const maxResearchMetadataTitleCharacters = 160;
 const maxResearchMetadataDomainCharacters = 120;
 const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
+const secretLikeResearchPathPattern =
+  /(?:^|\/)(?:api[_-]?key|secrets?|(?:access[_-]?)?tokens?|passwords?|credentials?|authorization|cookie)(?:[\/:=]|$)/i;
+const secretLikeResearchValuePattern =
+  /(sk-[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9_]{10,}|xox[baprs]-[A-Za-z0-9-]{10,}|(api[_ -]?key|secret|token|password|credential|authorization|cookie)\s*[:=]\s*\S+)/i;
 
 export type ChatResponseData = {
   reply: string;
@@ -306,7 +310,7 @@ function parseChatResearchMetadata(value: unknown) {
     .filter((warning): warning is string => typeof warning === "string")
     .slice(0, maxResearchMetadataWarnings)
     .map((warning) =>
-      truncateChatResearchMetadataText(
+      redactChatResearchMetadataText(
         warning,
         maxResearchMetadataWarningCharacters
       )
@@ -339,12 +343,12 @@ function sanitizeChatResearchSource(value: unknown) {
 
   return [
     {
-      title: truncateChatResearchMetadataText(
+      title: redactChatResearchMetadataText(
         value.title,
         maxResearchMetadataTitleCharacters
       ),
       url,
-      domain: truncateChatResearchMetadataText(
+      domain: redactChatResearchMetadataText(
         new URL(url).hostname,
         maxResearchMetadataDomainCharacters
       )
@@ -360,15 +364,48 @@ function sanitizeChatResearchUrl(value: string) {
       return undefined;
     }
 
+    if (isSecretLikeResearchValue(parsed.hostname)) {
+      return undefined;
+    }
+
     const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
 
     if (pathnameLimit < 1) {
       return undefined;
     }
 
+    const pathname = decodeResearchPathname(parsed.pathname);
+
+    if (
+      isSecretLikeResearchValue(pathname) ||
+      secretLikeResearchPathPattern.test(pathname)
+    ) {
+      return parsed.origin;
+    }
+
     return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
   } catch {
     return undefined;
+  }
+}
+
+function redactChatResearchMetadataText(value: string, limit: number) {
+  if (isSecretLikeResearchValue(value)) {
+    return "[redacted]";
+  }
+
+  return truncateChatResearchMetadataText(value, limit);
+}
+
+function isSecretLikeResearchValue(value: string) {
+  return secretLikeResearchValuePattern.test(value);
+}
+
+function decodeResearchPathname(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
 

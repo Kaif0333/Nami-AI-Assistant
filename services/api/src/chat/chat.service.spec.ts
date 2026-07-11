@@ -462,6 +462,45 @@ describe("ChatService conversation history", () => {
       assert.ok(warning.length <= 300);
     }
   });
+
+  it("redacts secret-like research metadata before returning and storing it", async () => {
+    const secretPrefix = ["s", "k"].join("-");
+    const titleSecret = `${secretPrefix}title-secret-123456`;
+    const warningSecret = `${secretPrefix}warning-secret-123456`;
+    const pathSecret = `${secretPrefix}path-secret-123456`;
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: [
+        {
+          ...createResearchRun(mode).sources[0],
+          title: `API key: ${titleSecret}`,
+          url: `https://nodejs.org/credentials/token/${pathSecret}/releases?token=query-secret#fragment`
+        }
+      ],
+      warnings: [`Research provider token: ${warningSecret}`]
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.equal(response.research?.sources[0]?.title, "[redacted]");
+    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+    assert.equal(response.research?.warnings[0], "[redacted]");
+
+    for (const metadata of [response.research, storedResearch]) {
+      const serialized = JSON.stringify(metadata);
+
+      assert.equal(serialized.includes(titleSecret), false);
+      assert.equal(serialized.includes(warningSecret), false);
+      assert.equal(serialized.includes(pathSecret), false);
+      assert.equal(serialized.includes("query-secret"), false);
+    }
+  });
 });
 
 function createChatService(
