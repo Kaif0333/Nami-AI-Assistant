@@ -265,6 +265,29 @@ Current result.
     assert.deepEqual(report.actionPlan, ["Action one"]);
   });
 
+  it("parses valid non-Latin report content", () => {
+    const report = parseResearchReport(`## Summary
+यह शोध का सारांश है।
+
+## Key Findings
+- पहला निष्कर्ष
+
+## Recommendations
+- यह सुझाव है
+
+## Risks
+- संभावित जोखिम
+
+## Action Plan
+- अगला कदम`);
+
+    assert.equal(report.summary, "यह शोध का सारांश है।");
+    assert.deepEqual(report.keyFindings, ["पहला निष्कर्ष"]);
+    assert.deepEqual(report.recommendations, ["यह सुझाव है"]);
+    assert.deepEqual(report.risks, ["संभावित जोखिम"]);
+    assert.deepEqual(report.actionPlan, ["अगला कदम"]);
+  });
+
   it("rejects reports with missing or inexact headings", () => {
     for (const markdown of [
       "## Summary\nIncomplete.",

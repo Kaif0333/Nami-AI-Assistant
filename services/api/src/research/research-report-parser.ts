@@ -82,7 +82,7 @@ function normalizeMarkdownLine(line: string) {
 }
 
 function hasMeaningfulContent(value: string) {
-  return /[a-z0-9]/i.test(value);
+  return /[\p{L}\p{N}]/u.test(value);
 }
 
 function invalidReport() {
