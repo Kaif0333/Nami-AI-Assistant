@@ -501,6 +501,41 @@ describe("ChatService conversation history", () => {
       assert.equal(serialized.includes("query-secret"), false);
     }
   });
+
+  it("redacts double-encoded secret-like research source paths before returning and storing them", async () => {
+    const secretPrefix = ["s", "k"].join("-");
+    const pathSecret = `${secretPrefix}double-encoded-secret-123456`;
+    const doubleEncodedPath = encodeURIComponent(
+      encodeURIComponent(`credentials/token/${pathSecret}`)
+    );
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: [
+        {
+          ...createResearchRun(mode).sources[0],
+          url: `https://nodejs.org/${doubleEncodedPath}`
+        }
+      ]
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+
+    for (const metadata of [response.research, storedResearch]) {
+      const serialized = JSON.stringify(metadata);
+
+      assert.equal(serialized.includes("credentials"), false);
+      assert.equal(serialized.includes("token"), false);
+      assert.equal(serialized.includes(pathSecret), false);
+    }
+  });
 });
 
 function createChatService(
