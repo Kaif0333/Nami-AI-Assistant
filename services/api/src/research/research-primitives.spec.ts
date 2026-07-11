@@ -34,6 +34,12 @@ describe("research URL policy", () => {
     const rejectedUrls = [
       "http://localhost/admin",
       "http://api.localhost/admin",
+      "http://intranet/admin",
+      "http://service.local/admin",
+      "http://metadata.google.internal/admin",
+      "http://service.lan/admin",
+      "http://router.home/admin",
+      "http://service.corp/admin",
       "http://0.1.2.3/admin",
       "http://10.0.0.1/admin",
       "http://100.64.0.1/admin",
@@ -264,6 +270,41 @@ Current result.
       "## Summary\nIncomplete.",
       "## summary\nResult.\n## Key Findings\n- One\n## Recommendations\n- One\n## Risks\n- One\n## Action Plan\n- One"
     ]) {
+      assert.throws(
+        () => parseResearchReport(markdown),
+        (error) => hasExceptionCode(error, "RESEARCH_INVALID_REPORT")
+      );
+    }
+  });
+
+  it("rejects reports without meaningful content in every required section", () => {
+    const invalidReports = [
+      [
+        "## Summary",
+        "",
+        "## Key Findings",
+        "",
+        "## Recommendations",
+        "",
+        "## Risks",
+        "",
+        "## Action Plan"
+      ].join("\n"),
+      [
+        "## Summary",
+        "Current result.",
+        "## Key Findings",
+        "-",
+        "## Recommendations",
+        "- Recommendation one",
+        "## Risks",
+        "- Risk one",
+        "## Action Plan",
+        "- Action one"
+      ].join("\n")
+    ];
+
+    for (const markdown of invalidReports) {
       assert.throws(
         () => parseResearchReport(markdown),
         (error) => hasExceptionCode(error, "RESEARCH_INVALID_REPORT")

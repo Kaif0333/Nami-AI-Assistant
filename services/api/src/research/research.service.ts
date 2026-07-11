@@ -67,25 +67,28 @@ export class ResearchService {
     const run = await this.createRunningRun(request);
     const providerStatus = this.provider.getStatus();
     const startedAt = Date.now();
-    const actionLog = await this.actionLogs.createActionLog({
-      actionType: "research_web",
-      summary: "Research web request",
-      status: "running",
-      riskLevel: "low",
-      inputPreview: {
-        queryLength: request.query.length,
-        urlDomains: request.urls.map((url) => new URL(url).hostname),
-        mode: request.mode
-      },
-      metadata: {
-        runId: run.id,
-        mode: request.mode,
-        provider: providerStatus.provider,
-        model: providerStatus.model
-      }
-    });
+    let actionLog: Awaited<
+      ReturnType<ActionLogsService["createActionLog"]>
+    > | undefined;
 
     try {
+      actionLog = await this.actionLogs.createActionLog({
+        actionType: "research_web",
+        summary: "Research web request",
+        status: "running",
+        riskLevel: "low",
+        inputPreview: {
+          queryLength: request.query.length,
+          urlDomains: request.urls.map((url) => new URL(url).hostname),
+          mode: request.mode
+        },
+        metadata: {
+          runId: run.id,
+          mode: request.mode,
+          provider: providerStatus.provider,
+          model: providerStatus.model
+        }
+      });
       const result =
         request.mode === "deep"
           ? await this.runDeepResearch(run.id, request)
@@ -111,12 +114,14 @@ export class ResearchService {
       const failed = await this.failRun(run, this.safeErrorMessage(error));
       const durationMs = Date.now() - startedAt;
 
-      await this.actionLogs.updateActionLog(actionLog.id, {
-        status: "failed",
-        errorMessage: failed.errorMessage,
-        outputPreview: { status: "failed" },
-        metadata: this.auditMetadata(failed, durationMs)
-      });
+      if (actionLog) {
+        await this.actionLogs.updateActionLog(actionLog.id, {
+          status: "failed",
+          errorMessage: failed.errorMessage,
+          outputPreview: { status: "failed" },
+          metadata: this.auditMetadata(failed, durationMs)
+        });
+      }
       this.logger.warn(
         `research.failed id=${failed.id} mode=${failed.mode} durationMs=${durationMs}`
       );

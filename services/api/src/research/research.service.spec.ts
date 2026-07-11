@@ -146,6 +146,58 @@ describe("ResearchService", () => {
     assert.doesNotMatch(JSON.stringify(harness.updatedLogs), /internal diagnostic detail/);
   });
 
+  it("persists a failed run when a grounded report has empty required sections", async () => {
+    const harness = createHarness({
+      evidence: [
+        evidence({
+          text: [
+            "## Summary",
+            "## Key Findings",
+            "## Recommendations",
+            "## Risks",
+            "## Action Plan"
+          ].join("\n")
+        })
+      ]
+    });
+
+    await assert.rejects(
+      () =>
+        harness.service.runResearch({
+          query: "current Node release",
+          mode: "fast"
+        }),
+      /Research report is invalid/
+    );
+
+    const runs = await harness.service.listResearchRuns({ status: "failed" });
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0]?.errorMessage, "Research report is invalid.");
+  });
+
+  it("marks the running record failed when audit-log creation fails", async () => {
+    const harness = createHarness({
+      actionLogError: new Error("audit database password exposed")
+    });
+
+    await assert.rejects(
+      () =>
+        harness.service.runResearch({
+          query: "current Node release",
+          mode: "fast"
+        }),
+      /Research failed/
+    );
+
+    const runs = await harness.service.listResearchRuns({ status: "failed" });
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0]?.status, "failed");
+    assert.equal(runs[0]?.errorMessage, "Research failed.");
+    assert.equal(harness.searchInputs.length, 0);
+    assert.equal(harness.updatedLogs.length, 0);
+    assert.doesNotMatch(JSON.stringify(runs), /database password exposed/);
+  });
+
   it("lists at most 50 newest matching runs and gets a run by id", async () => {
     const harness = createHarness({ evidence: Array.from({ length: 52 }, () => evidence()) });
     const created = [];
@@ -194,6 +246,7 @@ describe("ResearchService", () => {
 });
 
 function createHarness(options: {
+  actionLogError?: Error;
   aiResponses?: string[];
   evidence?: Array<ResearchEvidence | Error>;
 } = {}) {
@@ -246,6 +299,10 @@ function createHarness(options: {
   } as AiProviderService;
   const actionLogs = {
     async createActionLog(input: Record<string, unknown>) {
+      if (options.actionLogError) {
+        throw options.actionLogError;
+      }
+
       createdLogs.push(input);
       return { id: "action-log-id", ...input };
     },

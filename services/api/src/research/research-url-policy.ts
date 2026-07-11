@@ -7,6 +7,14 @@ import { RESEARCH_URL_NOT_ALLOWED_MESSAGE } from "./research-provider.types";
 const MAX_RESEARCH_URLS = 5;
 const allowedProtocols = new Set(["http:", "https:"]);
 const allowedPorts = new Set(["", "80", "443"]);
+const blockedHostnameSuffixes = [
+  ".localhost",
+  ".local",
+  ".internal",
+  ".lan",
+  ".home",
+  ".corp"
+];
 
 export function validateResearchUrls(urls: string[]): string[] {
   const normalizedUrls = urls.map(normalizePublicResearchUrl);
@@ -32,7 +40,8 @@ function normalizePublicResearchUrl(value: string): string {
     !allowedPorts.has(url.port) ||
     Boolean(url.username || url.password) ||
     hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
+    !hostname.includes(".") ||
+    blockedHostnameSuffixes.some((suffix) => hostname.endsWith(suffix)) ||
     isIP(hostname) !== 0
   ) {
     throw urlNotAllowed();

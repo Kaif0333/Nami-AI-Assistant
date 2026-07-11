@@ -40,13 +40,25 @@ export function parseResearchReport(markdown: string): ResearchReport {
     throw invalidReport();
   }
 
-  return {
+  const report = {
     summary: sectionText(sections, "Summary"),
     keyFindings: sectionItems(sections, "Key Findings"),
     recommendations: sectionItems(sections, "Recommendations"),
     risks: sectionItems(sections, "Risks"),
     actionPlan: sectionItems(sections, "Action Plan")
   };
+
+  if (
+    !report.summary ||
+    report.keyFindings.length === 0 ||
+    report.recommendations.length === 0 ||
+    report.risks.length === 0 ||
+    report.actionPlan.length === 0
+  ) {
+    throw invalidReport();
+  }
+
+  return report;
 }
 
 function sectionText(sections: Map<SectionName, string[]>, name: SectionName) {
@@ -56,8 +68,8 @@ function sectionText(sections: Map<SectionName, string[]>, name: SectionName) {
 function sectionItems(sections: Map<SectionName, string[]>, name: SectionName) {
   return (sections.get(name) ?? [])
     .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, "").trim());
+    .map((line) => line.replace(/^(?:[-*+]\s*|\d+[.)]\s*)/, "").trim())
+    .filter(Boolean);
 }
 
 function invalidReport() {
