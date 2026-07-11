@@ -215,6 +215,23 @@ describe("grounding source normalization", () => {
     assert.equal(sources[1]?.sourceType, "url_context");
     assert.equal(sources[1]?.normalizedUrl, "https://example.org/guide");
   });
+
+  it("requires successful URL Context retrieval before creating a source", () => {
+    const sources = normalizeGroundingSources(
+      {
+        candidates: [
+          {
+            urlContextMetadata: {
+              urlMetadata: [{ retrievedUrl: "https://example.com/docs" }]
+            }
+          }
+        ]
+      },
+      "run-missing-status"
+    );
+
+    assert.deepEqual(sources, []);
+  });
 });
 
 describe("research report parser", () => {

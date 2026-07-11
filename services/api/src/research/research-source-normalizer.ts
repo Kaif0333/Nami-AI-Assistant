@@ -55,8 +55,7 @@ export function normalizeGroundingSources(
     for (const urlMetadata of candidate.urlContextMetadata?.urlMetadata ?? []) {
       if (
         !urlMetadata.retrievedUrl ||
-        (urlMetadata.urlRetrievalStatus &&
-          urlMetadata.urlRetrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS")
+        urlMetadata.urlRetrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS"
       ) {
         continue;
       }
