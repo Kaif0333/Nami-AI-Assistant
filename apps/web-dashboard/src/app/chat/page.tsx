@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Paperclip,
   SendHorizontal,
@@ -30,7 +31,10 @@ import {
   listChatConversations,
   sendChatMessage
 } from "@/lib/nami-api";
-import type { ChatConversationSummary } from "@/lib/nami-api";
+import type {
+  ChatConversationSummary,
+  ChatResearchMetadata
+} from "@/lib/nami-api";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -39,6 +43,7 @@ type ChatMessage = {
   text: string;
   tone?: "normal" | "error";
   wasTruncated?: boolean;
+  research?: ChatResearchMetadata;
 };
 
 type TimelineEvent = {
@@ -87,12 +92,25 @@ function toUiMessage(message: {
   id: string;
   role: "user" | "assistant";
   content: string;
+  research?: ChatResearchMetadata;
 }): ChatMessage {
   return {
     id: message.id,
     role: message.role === "user" ? "Kaif" : "Nami",
-    text: message.content
+    text: message.content,
+    research: message.research
   };
+}
+
+function safeCitationUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function formatConversationTime(value: string) {
@@ -103,6 +121,17 @@ function formatConversationTime(value: string) {
 }
 
 function formatResponseTimelineDetail(response: Awaited<ReturnType<typeof sendChatMessage>>) {
+  if (response.research) {
+    const route = response.modelRoute
+      ? ` via ${response.modelRoute.provider}/${response.modelRoute.model}`
+      : "";
+    const warnings = response.research.warnings.length
+      ? ` - ${response.research.warnings.length} warnings`
+      : "";
+
+    return `${response.research.mode} research ${response.research.status} - ${response.research.sources.length} sources${route}${warnings}`;
+  }
+
   if (response.modelRoute) {
     return `${response.modelRoute.taskProfile} via ${response.modelRoute.provider}/${response.modelRoute.model}${
       response.wasTruncated ? " (provider length stop)" : ""
@@ -301,7 +330,8 @@ export default function ChatPage() {
           id: createId(),
           role: "Nami",
           text: response.reply,
-          wasTruncated: response.wasTruncated
+          wasTruncated: response.wasTruncated,
+          research: response.research
         }
       ]);
       setTimeline((current) => [
@@ -441,6 +471,82 @@ export default function ChatPage() {
                           Provider stopped because of length after automatic
                           continuation. Send continue to keep going.
                         </p>
+                      ) : null}
+                      {message.role === "Nami" && message.research ? (
+                        <div className="mt-3 border-t border-border pt-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-foreground">
+                              Sources
+                            </span>
+                            <Badge className="capitalize" variant="outline">
+                              {message.research.mode}
+                            </Badge>
+                            <Badge
+                              className="capitalize"
+                              variant={
+                                message.research.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {message.research.status}
+                            </Badge>
+                          </div>
+                          {message.research.sources.length > 0 ? (
+                            <ol className="mt-2 space-y-1.5">
+                              {message.research.sources.map((source, index) => {
+                                const href = safeCitationUrl(source.url);
+
+                                return (
+                                  <li
+                                    className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
+                                    key={`${message.research?.runId}-${index}-${source.url}`}
+                                  >
+                                    <span className="shrink-0 text-foreground">
+                                      {index + 1}.
+                                    </span>
+                                    {href ? (
+                                      <a
+                                        className="inline-flex min-w-0 items-center gap-1 hover:text-primary"
+                                        href={href}
+                                        rel="noreferrer noopener"
+                                        target="_blank"
+                                      >
+                                        <span className="truncate">
+                                          {source.title || source.domain}
+                                        </span>
+                                        <ExternalLink
+                                          aria-hidden
+                                          className="size-3 shrink-0"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <span className="truncate">
+                                        {source.title || source.domain}
+                                      </span>
+                                    )}
+                                    <span className="hidden shrink-0 text-muted-foreground sm:inline">
+                                      {source.domain}
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          ) : (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              No safe source links were returned.
+                            </p>
+                          )}
+                          {message.research.warnings.length > 0 ? (
+                            <div className="mt-2 flex gap-2 text-xs leading-5 text-muted-foreground">
+                              <AlertTriangle
+                                aria-hidden
+                                className="mt-0.5 size-3.5 shrink-0 text-primary"
+                              />
+                              <span>{message.research.warnings.join(" ")}</span>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   </div>

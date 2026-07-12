@@ -10,6 +10,58 @@ export type ChatResearchMetadata = {
   warnings: string[];
 };
 
+export type ResearchMode = "fast" | "deep";
+
+export type ResearchStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "partial"
+  | "failed";
+
+export type ResearchSource = {
+  id: string;
+  url: string;
+  title: string;
+  domain: string;
+  snippet: string;
+  publishedAt: string | null;
+  retrievedAt: string;
+  sourceType: "web" | "url_context";
+};
+
+export type ResearchRun = {
+  id: string;
+  query: string;
+  mode: ResearchMode;
+  status: ResearchStatus;
+  summary: string;
+  keyFindings: string[];
+  recommendations: string[];
+  risks: string[];
+  actionPlan: string[];
+  provider: string;
+  model: string;
+  searchQueries: string[];
+  warnings: string[];
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sources: ResearchSource[];
+};
+
+export type ResearchStatusData = {
+  provider: string;
+  configured: boolean;
+  model: string;
+  supportedModes: ResearchMode[];
+  supportsUrlContext: boolean;
+  maxUrls: number;
+  requestTimeoutMs: number;
+};
+
 const maxResearchMetadataSources = 5;
 const maxResearchMetadataWarnings = 5;
 const maxResearchMetadataTitleCharacters = 160;
@@ -284,6 +336,46 @@ export async function getChatConversation(id: string) {
       research: parseChatResearchMetadata(message.metadata.research)
     }))
   };
+}
+
+export async function getResearchStatus() {
+  return apiRequest<ResearchStatusData>("/research/status");
+}
+
+export async function runResearch(input: {
+  query: string;
+  mode: ResearchMode;
+  urls?: string[];
+}) {
+  return apiRequest<ResearchRun>("/research", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function listResearchRuns(filters?: {
+  mode?: ResearchMode;
+  status?: ResearchStatus;
+  query?: string;
+}) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.size ? `?${params.toString()}` : "";
+  const data = await apiRequest<{ researchRuns: ResearchRun[] }>(
+    `/research${query}`
+  );
+
+  return data.researchRuns;
+}
+
+export async function getResearchRun(id: string) {
+  return apiRequest<ResearchRun>(`/research/${encodeURIComponent(id)}`);
 }
 
 function parseChatResearchMetadata(value: unknown) {

@@ -16,6 +16,7 @@ import {
   MessageSquareText,
   Network,
   RadioTower,
+  Search,
   ShieldCheck,
   Sparkles,
   SquareTerminal,
@@ -33,6 +34,7 @@ export const navItems: NavItem[] = [
   { title: "Chat", href: "/chat", icon: MessageSquareText },
   { title: "Voice", href: "/voice", icon: Mic2 },
   { title: "Memory", href: "/memory", icon: BrainCircuit },
+  { title: "Research", href: "/research", icon: Search },
   { title: "Tasks", href: "/tasks", icon: ListChecks },
   { title: "Projects", href: "/projects", icon: SquareTerminal },
   { title: "Automations", href: "/automations", icon: Workflow },
@@ -42,7 +44,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const systemStats = [
-  { label: "Build phase", value: "Phase 5", detail: "Push-to-talk voice" },
+  { label: "Build phase", value: "Phase 6", detail: "Source-backed research" },
   { label: "Risk mode", value: "Gated", detail: "Approval queue persisted" },
   { label: "Runtime", value: "Local", detail: "API + dashboard" }
 ];
