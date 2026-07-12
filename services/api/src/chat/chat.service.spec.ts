@@ -6,7 +6,9 @@ import type { CreateActionLogInput } from "../action-logs/action-log.types";
 import { AiProviderService } from "../ai/ai-provider.service";
 import { GenerateTextInput, GenerateTextResult } from "../ai/ai-provider.types";
 import { ApprovalsService } from "../approvals/approvals.service";
+import { DatabaseService } from "../database/database.service";
 import { MemoriesService } from "../memories/memories.service";
+import { ResearchDnsResolver } from "../research/research-url-policy";
 import { ResearchService } from "../research/research.service";
 import type {
   ResearchRequestInput,
@@ -659,6 +661,74 @@ describe("ChatService conversation history", () => {
     assert.equal(serialized.includes("?view="), false);
     assert.equal(serialized.includes("#lts"), false);
   });
+
+  it("redacts encoded secret-like research metadata when reopening a stored conversation", async () => {
+    const titleSecret = "sk-encoded-title-secret-123456";
+    const warningSecret = "sk-encoded-warning-secret-123456";
+    const service = createChatService([], [], undefined, [], {
+      database: createConversationDatabase({
+        research: {
+          mode: "fast",
+          runId: "11111111-1111-4111-8111-111111111111",
+          sources: [
+            {
+              domain: "ignored.example.com",
+              title: encodeURIComponent(`API key: ${titleSecret}`),
+              url: "https://public.example.com/releases"
+            }
+          ],
+          status: "completed",
+          warnings: [
+            encodeURIComponent(`Research provider token: ${warningSecret}`)
+          ]
+        }
+      }),
+      resolver: async () => ["93.184.216.34"]
+    });
+
+    const conversation = await service.getConversation(
+      "22222222-2222-4222-8222-222222222222"
+    );
+    const research = conversation.messages[0]?.metadata.research as {
+      sources: Array<{ title: string; url: string; domain: string }>;
+      warnings: string[];
+    };
+
+    assert.equal(research.sources[0]?.title, "[redacted]");
+    assert.deepEqual(research.warnings, ["[redacted]"]);
+    assert.equal(JSON.stringify(research).includes(titleSecret), false);
+    assert.equal(JSON.stringify(research).includes(warningSecret), false);
+  });
+
+  it("drops reopened chat citations whose public-looking hostname resolves privately", async () => {
+    const service = createChatService([], [], undefined, [], {
+      database: createConversationDatabase({
+        research: {
+          mode: "fast",
+          runId: "11111111-1111-4111-8111-111111111111",
+          sources: [
+            {
+              domain: "public.example.com",
+              title: "Public-looking source",
+              url: "https://public.example.com/releases"
+            }
+          ],
+          status: "completed",
+          warnings: []
+        }
+      }),
+      resolver: async () => ["10.0.0.8"]
+    });
+
+    const conversation = await service.getConversation(
+      "22222222-2222-4222-8222-222222222222"
+    );
+    const research = conversation.messages[0]?.metadata.research as {
+      sources: Array<{ title: string; url: string; domain: string }>;
+    };
+
+    assert.deepEqual(research.sources, []);
+  });
 });
 
 function createChatService(
@@ -668,8 +738,10 @@ function createChatService(
   capturedActionLogs: CreateActionLogInput[] = [],
   options: {
     approvalsService?: ApprovalsService;
+    database?: DatabaseService;
     policy?: SafeActionPolicyService;
     researchService?: ResearchService;
+    resolver?: ResearchDnsResolver;
   } = {}
 ) {
   let responseIndex = 0;
@@ -697,9 +769,42 @@ function createChatService(
     approvalsService,
     actionLogsService,
     memoriesService,
-    undefined,
-    options.researchService
+    options.database,
+    options.researchService,
+    options.resolver
   );
+}
+
+function createConversationDatabase(metadata: Record<string, unknown>) {
+  const conversationId = "22222222-2222-4222-8222-222222222222";
+  const createdAt = new Date("2026-07-12T00:00:00.000Z");
+
+  return {
+    client: {
+      conversation: {
+        async findUnique() {
+          return {
+            _count: { messages: 1 },
+            createdAt,
+            id: conversationId,
+            messages: [
+              {
+                content: "Stored research reply.",
+                conversationId,
+                createdAt,
+                id: "33333333-3333-4333-8333-333333333333",
+                metadata,
+                role: "assistant"
+              }
+            ],
+            metadata: {},
+            title: "Stored research",
+            updatedAt: createdAt
+          };
+        }
+      }
+    }
+  } as unknown as DatabaseService;
 }
 
 function createPolicy(

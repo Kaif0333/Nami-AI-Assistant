@@ -27,8 +27,14 @@ import type {
   MemoryType
 } from "../memories/memory.types";
 import { classifyResearchIntent } from "../research/research-intent-classifier";
-import { validateResearchUrls } from "../research/research-url-policy";
+import {
+  RESEARCH_DNS_RESOLVER,
+  ResearchDnsResolver,
+  validatePublicResearchUrls,
+  validateResearchUrls
+} from "../research/research-url-policy";
 import { ResearchService } from "../research/research.service";
+import { researchModes, researchStatuses } from "../research/research.types";
 import type { ResearchRun } from "../research/research.types";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
 import {
@@ -107,7 +113,10 @@ export class ChatService {
     private readonly database?: DatabaseService,
     @Optional()
     @Inject(ResearchService)
-    private readonly researchService?: ResearchService
+    private readonly researchService?: ResearchService,
+    @Optional()
+    @Inject(RESEARCH_DNS_RESOLVER)
+    private readonly researchDnsResolver?: ResearchDnsResolver
   ) {}
 
   async sendMessage(input: ChatRequestDto): Promise<ChatResponseData> {
@@ -337,7 +346,7 @@ export class ChatService {
         throw this.notFound(conversationId);
       }
 
-      return this.toConversationDetail(conversation);
+      return await this.toConversationDetail(conversation);
     }
 
     const conversation = this.conversationDetails.get(conversationId);
@@ -1095,13 +1104,15 @@ export class ChatService {
     };
   }
 
-  private toConversationDetail(
+  private async toConversationDetail(
     row: Conversation & {
       _count: { messages: number };
       messages: Message[];
     }
-  ): ChatConversationDetail {
-    const messages = row.messages.map((message) => this.toMessageRecord(message));
+  ): Promise<ChatConversationDetail> {
+    const messages = await Promise.all(
+      row.messages.map((message) => this.toMessageRecord(message))
+    );
 
     return {
       id: row.id,
@@ -1123,14 +1134,17 @@ export class ChatService {
     return summary;
   }
 
-  private toMessageRecord(row: Message): ChatMessageRecord {
+  private async toMessageRecord(row: Message): Promise<ChatMessageRecord> {
     return {
       id: row.id,
       conversationId: row.conversationId,
       role: isStoredChatRole(row.role) ? row.role : "assistant",
       content: row.content,
       createdAt: row.createdAt.toISOString(),
-      metadata: asRecord(row.metadata)
+      metadata: await sanitizeStoredChatMetadata(
+        row.metadata,
+        this.researchDnsResolver
+      )
     };
   }
 
@@ -1200,9 +1214,123 @@ function sanitizeChatResearchSource(source: ResearchRun["sources"][number]) {
   ];
 }
 
+async function sanitizeStoredChatMetadata(
+  value: unknown,
+  resolver?: ResearchDnsResolver
+): Promise<Record<string, unknown>> {
+  const metadata = asRecord(value);
+
+  if (!("research" in metadata)) {
+    return metadata;
+  }
+
+  const research = await sanitizeStoredChatResearchMetadata(
+    metadata.research,
+    resolver
+  );
+  const { research: _research, ...otherMetadata } = metadata;
+
+  return research ? { ...otherMetadata, research } : otherMetadata;
+}
+
+async function sanitizeStoredChatResearchMetadata(
+  value: unknown,
+  resolver?: ResearchDnsResolver
+): Promise<ChatResearchMetadata | undefined> {
+  const metadata = asRecord(value);
+  const runId = metadata.runId;
+  const mode = metadata.mode;
+  const status = metadata.status;
+
+  if (
+    !isStoredResearchRunId(runId) ||
+    !isResearchMode(mode) ||
+    !isResearchStatus(status)
+  ) {
+    return undefined;
+  }
+
+  const sourceValues = Array.isArray(metadata.sources)
+    ? metadata.sources.slice(0, maxResearchMetadataSources)
+    : [];
+  const warningValues = Array.isArray(metadata.warnings)
+    ? metadata.warnings.slice(0, maxResearchMetadataWarnings)
+    : [];
+  const sources = (
+    await Promise.all(
+      sourceValues.map((source) =>
+        sanitizeStoredChatResearchSource(source, resolver)
+      )
+    )
+  ).flat();
+  const warnings = warningValues
+    .filter((warning): warning is string => typeof warning === "string")
+    .map((warning) =>
+      redactChatResearchMetadataText(
+        warning,
+        maxResearchMetadataWarningCharacters
+      )
+    );
+
+  return {
+    runId,
+    mode,
+    status,
+    sources,
+    warnings
+  };
+}
+
+async function sanitizeStoredChatResearchSource(
+  value: unknown,
+  resolver?: ResearchDnsResolver
+) {
+  const source = asRecord(value);
+  const title = source.title;
+  const sourceUrl = source.url;
+
+  if (typeof title !== "string" || typeof sourceUrl !== "string") {
+    return [];
+  }
+
+  const url = await sanitizeStoredChatResearchUrl(sourceUrl, resolver);
+
+  if (!url) {
+    return [];
+  }
+
+  return [
+    {
+      title: redactChatResearchMetadataText(
+        title,
+        maxResearchMetadataTitleCharacters
+      ),
+      url,
+      domain: redactChatResearchMetadataText(
+        new URL(url).hostname,
+        maxResearchMetadataDomainCharacters
+      )
+    }
+  ];
+}
+
 function sanitizeChatResearchUrl(value: string) {
   try {
     const url = validateResearchUrls([value])[0];
+    return url && url.length <= maxResearchMetadataUrlCharacters
+      ? url
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function sanitizeStoredChatResearchUrl(
+  value: string,
+  resolver?: ResearchDnsResolver
+) {
+  try {
+    const url = (await validatePublicResearchUrls([value], resolver))[0];
     return url && url.length <= maxResearchMetadataUrlCharacters
       ? url
       : undefined;
@@ -1453,11 +1581,31 @@ function isStoredChatRole(role: string): role is StoredChatRole {
   return role === "user" || role === "assistant";
 }
 
+function isResearchMode(value: unknown): value is ChatResearchMetadata["mode"] {
+  return (
+    typeof value === "string" &&
+    researchModes.includes(value as ChatResearchMetadata["mode"])
+  );
+}
+
+function isResearchStatus(
+  value: unknown
+): value is ChatResearchMetadata["status"] {
+  return (
+    typeof value === "string" &&
+    researchStatuses.includes(value as ChatResearchMetadata["status"])
+  );
+}
+
 function isAiTaskProfile(value: unknown): value is AiTaskProfile {
   return (
     typeof value === "string" &&
     aiTaskProfiles.includes(value as AiTaskProfile)
   );
+}
+
+function isStoredResearchRunId(value: unknown): value is string {
+  return typeof value === "string" && isUuid(value);
 }
 
 function isUuid(value: string) {
