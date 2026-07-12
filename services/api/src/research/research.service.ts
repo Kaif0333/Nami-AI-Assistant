@@ -508,13 +508,32 @@ export class ResearchService {
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
       metadata: this.recordValue(record.metadata),
-      sources: record.sources.map((source) => ({
+      sources: record.sources.flatMap((source) =>
+        this.toSanitizedResearchSource(source)
+      )
+    };
+  }
+
+  private toSanitizedResearchSource(
+    source: DatabaseResearchRun["sources"][number]
+  ): ResearchSource[] {
+    const normalizedUrl = this.safeStoredSourceUrl(source.normalizedUrl) ??
+      this.safeStoredSourceUrl(source.url);
+
+    if (!normalizedUrl) {
+      return [];
+    }
+
+    const url = new URL(normalizedUrl);
+
+    return [
+      {
         id: source.id,
         researchRunId: source.researchRunId,
-        url: source.url,
-        normalizedUrl: source.normalizedUrl,
+        url: normalizedUrl,
+        normalizedUrl,
         title: source.title,
-        domain: source.domain,
+        domain: url.hostname,
         snippet: source.snippet,
         publishedAt: source.publishedAt?.toISOString() ?? null,
         retrievedAt: source.retrievedAt.toISOString(),
@@ -522,8 +541,16 @@ export class ResearchService {
         citationMetadata: this.recordValue(source.citationMetadata),
         trusted: false,
         metadata: this.recordValue(source.metadata)
-      }))
-    };
+      }
+    ];
+  }
+
+  private safeStoredSourceUrl(value: string) {
+    try {
+      return validateResearchUrls([value])[0];
+    } catch {
+      return undefined;
+    }
   }
 
   private normalizeSources(sources: ResearchSource[], researchRunId: string) {

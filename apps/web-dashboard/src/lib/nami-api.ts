@@ -70,8 +70,9 @@ const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
 const maxResearchPathnameDecodeRounds = 4;
 const reservedResearchHostnamePattern =
-  /(?:^|\.)(?:localhost|localdomain|local|internal|test|example|invalid|home|lan|onion)$/i;
+  /(?:^|\.)(?:localhost|localdomain|local|internal|test|example|invalid|home|lan|corp|onion)$/i;
 const blockedResearchHostnameSuffixes = [
+  "home.arpa",
   "nip.io",
   "sslip.io",
   "localtest.me",

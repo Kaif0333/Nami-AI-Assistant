@@ -282,6 +282,74 @@ describe("ResearchService", () => {
     assert.deepEqual(await harness.service.getResearchRun(created[10]!.id), created[10]);
   });
 
+  it("sanitizes legacy persisted source URLs when reading database records", async () => {
+    const record = databaseResearchRun({
+      sources: [
+        databaseResearchSource({
+          id: "legacy-clean-normalized",
+          url: "https://example.com/docs?api_key=secret-value#token",
+          normalizedUrl: "https://example.com/docs"
+        }),
+        databaseResearchSource({
+          id: "legacy-strip-url",
+          url: "https://safe.example.org/guide?view=full#top",
+          normalizedUrl: "https://safe.example.org/guide?view=full#top"
+        }),
+        databaseResearchSource({
+          id: "legacy-local",
+          url: "http://localhost/admin",
+          normalizedUrl: "http://localhost/admin"
+        }),
+        databaseResearchSource({
+          id: "legacy-home-arpa",
+          url: "https://router.home.arpa/status",
+          normalizedUrl: "https://router.home.arpa/status"
+        })
+      ]
+    });
+    const harness = createHarness({
+      databaseClient: {
+        researchRun: {
+          async findMany() {
+            return [record];
+          },
+          async findUnique() {
+            return record;
+          }
+        }
+      }
+    });
+
+    const [listedRun] = await harness.service.listResearchRuns();
+    const fetchedRun = await harness.service.getResearchRun(record.id);
+
+    for (const run of [listedRun, fetchedRun]) {
+      assert.deepEqual(
+        run?.sources.map((item) => ({
+          id: item.id,
+          url: item.url,
+          normalizedUrl: item.normalizedUrl,
+          domain: item.domain
+        })),
+        [
+          {
+            id: "legacy-clean-normalized",
+            url: "https://example.com/docs",
+            normalizedUrl: "https://example.com/docs",
+            domain: "example.com"
+          },
+          {
+            id: "legacy-strip-url",
+            url: "https://safe.example.org/guide",
+            normalizedUrl: "https://safe.example.org/guide",
+            domain: "safe.example.org"
+          }
+        ]
+      );
+      assert.doesNotMatch(JSON.stringify(run), /secret-value|localhost|home\.arpa/);
+    }
+  });
+
   it("rejects non-public URLs before provider and audit calls", async () => {
     const harness = createHarness();
 
@@ -309,6 +377,7 @@ describe("ResearchService", () => {
 function createHarness(options: {
   actionLogError?: Error;
   aiResponses?: string[];
+  databaseClient?: unknown;
   evidence?: Array<ResearchEvidence | Error>;
   updateActionLogError?: Error;
 } = {}) {
@@ -377,7 +446,10 @@ function createHarness(options: {
       return updates;
     }
   } as unknown as ActionLogsService;
-  const database = { client: null, enabled: false } as unknown as DatabaseService;
+  const database = {
+    client: options.databaseClient ?? null,
+    enabled: Boolean(options.databaseClient)
+  } as unknown as DatabaseService;
 
   return {
     service: new ResearchService(provider, aiProvider, actionLogs, database),
@@ -419,5 +491,55 @@ function source(url: string, id: string): ResearchSource {
     citationMetadata: {},
     trusted: false,
     metadata: { provider: "gemini" }
+  };
+}
+
+function databaseResearchRun(overrides: Record<string, unknown> = {}) {
+  const now = new Date("2026-07-12T00:00:00.000Z");
+
+  return {
+    id: "database-run-1",
+    query: "current database record",
+    mode: "fast",
+    status: "completed",
+    provider: "gemini",
+    model: "gemini-2.5-flash-lite",
+    searchQueries: [],
+    summary: "Database summary.",
+    keyFindings: ["Finding one"],
+    recommendations: ["Recommendation one"],
+    risks: ["Risk one"],
+    actionPlan: ["Action one"],
+    warnings: [],
+    errorMessage: null,
+    startedAt: now,
+    completedAt: now,
+    createdAt: now,
+    updatedAt: now,
+    metadata: {},
+    sources: [],
+    ...overrides
+  };
+}
+
+function databaseResearchSource(overrides: Record<string, unknown> = {}) {
+  const now = new Date("2026-07-12T00:00:00.000Z");
+
+  return {
+    id: "database-source-1",
+    researchRunId: "database-run-1",
+    url: "https://example.com/docs",
+    normalizedUrl: "https://example.com/docs",
+    title: "Database source",
+    domain: "example.com",
+    snippet: "",
+    publishedAt: null,
+    retrievedAt: now,
+    sourceType: "web",
+    citationMetadata: {},
+    trusted: false,
+    metadata: {},
+    createdAt: now,
+    ...overrides
   };
 }

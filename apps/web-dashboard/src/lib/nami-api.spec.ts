@@ -17,6 +17,8 @@ describe("sanitizePublicResearchUrl", () => {
     for (const url of [
       "http://localhost.localdomain/admin",
       "https://foo.example/docs",
+      "https://service.corp/admin",
+      "https://router.home.arpa/status",
       "http://127.0.0.1.nip.io/admin",
       "http://169.254.169.254.sslip.io/latest",
       "http://api.localtest.me/admin",
