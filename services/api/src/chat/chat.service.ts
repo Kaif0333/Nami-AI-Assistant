@@ -27,6 +27,7 @@ import type {
   MemoryType
 } from "../memories/memory.types";
 import { classifyResearchIntent } from "../research/research-intent-classifier";
+import { validateResearchUrls } from "../research/research-url-policy";
 import { ResearchService } from "../research/research.service";
 import type { ResearchRun } from "../research/research.types";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
@@ -1203,33 +1204,10 @@ function sanitizeChatResearchSource(source: ResearchRun["sources"][number]) {
 
 function sanitizeChatResearchUrl(value: string) {
   try {
-    const parsed = new URL(value);
-
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return undefined;
-    }
-
-    if (isSecretLikeResearchValue(parsed.hostname)) {
-      return undefined;
-    }
-
-    const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
-
-    if (pathnameLimit < 1) {
-      return undefined;
-    }
-
-    const pathname = decodeResearchPathname(parsed.pathname);
-
-    if (
-      !pathname ||
-      isSecretLikeResearchValue(pathname) ||
-      secretLikeResearchPathPattern.test(pathname)
-    ) {
-      return parsed.origin;
-    }
-
-    return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
+    const url = validateResearchUrls([value])[0];
+    return url && url.length <= maxResearchMetadataUrlCharacters
+      ? url
+      : undefined;
   } catch {
     return undefined;
   }

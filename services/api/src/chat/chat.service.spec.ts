@@ -424,14 +424,14 @@ describe("ChatService conversation history", () => {
   it("caps and sanitizes research metadata before returning and storing it", async () => {
     const longTitle = "Research source ".repeat(20);
     const longDomain = "subdomain.".repeat(20) + "example.com";
-    const longPath = "a".repeat(600);
+    const longPath = "a".repeat(120);
     const researchService = createResearchService([], (mode) => ({
       ...createResearchRun(mode),
       sources: Array.from({ length: 8 }, (_, index) => ({
         ...createResearchRun(mode).sources[0],
         id: `research-source-${index}`,
         title: longTitle,
-        url: `https://example${index}.com/${longPath}?token=secret-${index}&api_key=private-${index}#fragment`,
+        url: `https://example${index}.com/${longPath}?view=full#fragment`,
         domain: longDomain
       })),
       warnings: Array.from({ length: 8 }, () => "Warning ".repeat(80))
@@ -448,8 +448,8 @@ describe("ChatService conversation history", () => {
     assert.equal(response.research?.sources.length, 5);
     assert.equal(response.research?.warnings.length, 5);
     assert.deepEqual(storedResearch, response.research);
-    assert.equal(JSON.stringify(response.research).includes("secret-"), false);
-    assert.equal(JSON.stringify(response.research).includes("private-"), false);
+    assert.equal(JSON.stringify(response.research).includes("?view="), false);
+    assert.equal(JSON.stringify(response.research).includes("#fragment"), false);
 
     for (const source of response.research?.sources ?? []) {
       assert.ok(source.title.length <= 160);
@@ -488,8 +488,7 @@ describe("ChatService conversation history", () => {
     const conversation = await service.getConversation(response.conversationId);
     const storedResearch = conversation.messages.at(-1)?.metadata.research;
 
-    assert.equal(response.research?.sources[0]?.title, "[redacted]");
-    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+    assert.deepEqual(response.research?.sources, []);
     assert.equal(response.research?.warnings[0], "[redacted]");
 
     for (const metadata of [response.research, storedResearch]) {
@@ -526,7 +525,7 @@ describe("ChatService conversation history", () => {
     const conversation = await service.getConversation(response.conversationId);
     const storedResearch = conversation.messages.at(-1)?.metadata.research;
 
-    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+    assert.deepEqual(response.research?.sources, []);
 
     for (const metadata of [response.research, storedResearch]) {
       const serialized = JSON.stringify(metadata);
@@ -557,7 +556,7 @@ describe("ChatService conversation history", () => {
     const conversation = await service.getConversation(response.conversationId);
     const storedResearch = conversation.messages.at(-1)?.metadata.research;
 
-    assert.equal(response.research?.sources[0]?.url, "https://nodejs.org");
+    assert.deepEqual(response.research?.sources, []);
 
     for (const metadata of [response.research, storedResearch]) {
       const serialized = JSON.stringify(metadata);
@@ -566,6 +565,65 @@ describe("ChatService conversation history", () => {
       assert.equal(serialized.includes("token"), false);
       assert.equal(serialized.includes("private-value"), false);
     }
+  });
+
+  it("drops non-public and wildcard-local research citations before returning and storing them", async () => {
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: [
+        {
+          ...createResearchRun(mode).sources[0],
+          id: "unsafe-localhost",
+          url: "http://localhost/admin"
+        },
+        {
+          ...createResearchRun(mode).sources[0],
+          id: "unsafe-ip",
+          url: "http://127.0.0.1/admin"
+        },
+        {
+          ...createResearchRun(mode).sources[0],
+          id: "unsafe-nip",
+          url: "http://127.0.0.1.nip.io/admin"
+        },
+        {
+          ...createResearchRun(mode).sources[0],
+          id: "unsafe-link-local",
+          url: "http://169.254.169.254.nip.io/latest"
+        },
+        {
+          ...createResearchRun(mode).sources[0],
+          id: "safe-source",
+          title: "Safe source",
+          url: "https://nodejs.org/en/about/previous-releases?view=full#lts"
+        }
+      ]
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.deepEqual(response.research?.sources, [
+      {
+        title: "Safe source",
+        url: "https://nodejs.org/en/about/previous-releases",
+        domain: "nodejs.org"
+      }
+    ]);
+    assert.deepEqual(storedResearch, response.research);
+
+    const serialized = JSON.stringify(response.research);
+    assert.equal(serialized.includes("localhost"), false);
+    assert.equal(serialized.includes("127.0.0.1"), false);
+    assert.equal(serialized.includes("169.254"), false);
+    assert.equal(serialized.includes("nip.io"), false);
+    assert.equal(serialized.includes("?view="), false);
+    assert.equal(serialized.includes("#lts"), false);
   });
 });
 

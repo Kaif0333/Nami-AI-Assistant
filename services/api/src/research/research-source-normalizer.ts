@@ -38,7 +38,7 @@ export function normalizeGroundingSources(
       sources.push({
         id: `${researchRunId}:source:${sources.length + 1}`,
         researchRunId,
-        url: web.uri,
+        url: normalizedUrl,
         normalizedUrl,
         title: web.title?.trim() || url.hostname,
         domain: url.hostname,
@@ -72,7 +72,7 @@ export function normalizeGroundingSources(
       sources.push({
         id: `${researchRunId}:source:${sources.length + 1}`,
         researchRunId,
-        url: urlMetadata.retrievedUrl,
+        url: normalizedUrl,
         normalizedUrl,
         title: url.hostname,
         domain: url.hostname,

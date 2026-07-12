@@ -194,6 +194,7 @@ describe("grounding source normalization", () => {
     assert.equal(sources.length, 1);
     assert.equal(sources[0]?.researchRunId, "run-123");
     assert.equal(sources[0]?.url, "https://example.com/docs");
+    assert.equal(sources[0]?.normalizedUrl, "https://example.com/docs");
     assert.equal(sources[0]?.title, "Example Documentation");
     assert.equal(sources[0]?.domain, "example.com");
     assert.equal(sources[0]?.sourceType, "web");
@@ -242,6 +243,56 @@ describe("grounding source normalization", () => {
     assert.equal(sources[0]?.sourceType, "web");
     assert.equal(sources[1]?.sourceType, "url_context");
     assert.equal(sources[1]?.normalizedUrl, "https://example.org/guide");
+  });
+
+  it("stores only normalized safe source URLs from provider metadata", () => {
+    const sources = normalizeGroundingSources(
+      {
+        candidates: [
+          {
+            groundingMetadata: {
+              groundingChunks: [
+                {
+                  web: {
+                    title: "Docs",
+                    uri: "https://example.com/docs?utm_source=provider#section"
+                  }
+                },
+                {
+                  web: {
+                    title: "Metadata service",
+                    uri: "http://169.254.169.254.nip.io/latest"
+                  }
+                }
+              ]
+            },
+            urlContextMetadata: {
+              urlMetadata: [
+                {
+                  retrievedUrl: "https://example.org/guide?view=full#top",
+                  urlRetrievalStatus: "URL_RETRIEVAL_STATUS_SUCCESS"
+                },
+                {
+                  retrievedUrl: "https://localtest.me/admin",
+                  urlRetrievalStatus: "URL_RETRIEVAL_STATUS_SUCCESS"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "run-safe-urls"
+    );
+
+    assert.equal(sources.length, 2);
+    assert.deepEqual(
+      sources.map((source) => source.url),
+      ["https://example.com/docs", "https://example.org/guide"]
+    );
+    assert.deepEqual(
+      sources.map((source) => source.normalizedUrl),
+      ["https://example.com/docs", "https://example.org/guide"]
+    );
   });
 
   it("requires successful URL Context retrieval before creating a source", () => {
