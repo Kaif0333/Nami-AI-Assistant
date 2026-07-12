@@ -1,5 +1,17 @@
 # 99 — Changelog
 
+## [0.6.6] - 2026-07-12
+
+### Added
+
+- Phase 6 source-backed Research dashboard with recent history and detail
+  reload support.
+- Chat citations linked to the sources used by research responses.
+
+### Safety
+
+- Hardened source URL handling and sanitized legacy persisted research sources.
+
 ## [0.6.5] - 2026-07-11
 
 ### Added
