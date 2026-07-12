@@ -71,6 +71,17 @@ const maxResearchMetadataWarningCharacters = 300;
 const maxResearchPathnameDecodeRounds = 4;
 const reservedResearchHostnamePattern =
   /(?:^|\.)(?:localhost|local|internal|test|example|invalid|home|lan|onion)$/i;
+const blockedResearchHostnameSuffixes = [
+  "nip.io",
+  "sslip.io",
+  "localtest.me",
+  "lvh.me",
+  "vcap.me",
+  "localhost.direct",
+  "local.gd",
+  "traefik.me"
+];
+const allowedResearchUrlPorts = new Set(["", "80", "443"]);
 const literalIpAddressPattern =
   /^(?:\d{1,3}\.){3}\d{1,3}$|^\[[0-9a-f:.]+\]$/i;
 const secretLikeResearchPathPattern =
@@ -461,6 +472,7 @@ export function sanitizePublicResearchUrl(value: string) {
       (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
       parsed.username ||
       parsed.password ||
+      !allowedResearchUrlPorts.has(parsed.port) ||
       !isPublicResearchHostname(parsed.hostname)
     ) {
       return undefined;
@@ -499,6 +511,9 @@ function isPublicResearchHostname(value: string) {
     hostname.includes(".") &&
     !literalIpAddressPattern.test(hostname) &&
     !reservedResearchHostnamePattern.test(hostname) &&
+    !blockedResearchHostnameSuffixes.some(
+      (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`)
+    ) &&
     !isSecretLikeResearchValue(hostname)
   );
 }

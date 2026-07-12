@@ -30,10 +30,27 @@ describe("research URL policy", () => {
     );
   });
 
+  it("strips non-secret query and fragment values from normalized URLs", () => {
+    assert.deepEqual(
+      validateResearchUrls([
+        "https://example.com/docs?topic=research#overview"
+      ]),
+      ["https://example.com/docs"]
+    );
+  });
+
   it("rejects non-public hosts, credentials, schemes, and ports", () => {
     const rejectedUrls = [
       "http://localhost/admin",
       "http://api.localhost/admin",
+      "http://127.0.0.1.nip.io/admin",
+      "http://169.254.169.254.sslip.io/latest",
+      "http://api.localtest.me/admin",
+      "http://api.lvh.me/admin",
+      "http://api.vcap.me/admin",
+      "http://api.localhost.direct/admin",
+      "http://api.local.gd/admin",
+      "http://api.traefik.me/admin",
       "http://intranet/admin",
       "http://service.local/admin",
       "http://metadata.google.internal/admin",
@@ -70,7 +87,9 @@ describe("research URL policy", () => {
       "https://user:password@example.com/private",
       "file:///C:/secret.txt",
       "ftp://example.com/archive",
-      "https://example.com:8080/admin"
+      "https://example.com:8080/admin",
+      "https://example.com/docs?api_key=secret-value",
+      "https://example.com/docs#access_token=secret-value"
     ];
 
     for (const url of rejectedUrls) {
