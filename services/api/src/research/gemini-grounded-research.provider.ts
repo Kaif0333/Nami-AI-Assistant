@@ -23,7 +23,11 @@ import {
 } from "./research-provider.types";
 import { normalizeGroundingSources } from "./research-source-normalizer";
 import { researchModes } from "./research.types";
-import { validateResearchUrls } from "./research-url-policy";
+import {
+  RESEARCH_DNS_RESOLVER,
+  ResearchDnsResolver,
+  validatePublicResearchUrls
+} from "./research-url-policy";
 
 export const RESEARCH_FETCH = Symbol("RESEARCH_FETCH");
 
@@ -46,7 +50,10 @@ export class GeminiGroundedResearchProvider implements ResearchProvider {
 
   constructor(
     @Inject(ConfigService) private readonly config: ConfigService,
-    @Optional() @Inject(RESEARCH_FETCH) fetch?: ResearchFetch
+    @Optional() @Inject(RESEARCH_FETCH) fetch?: ResearchFetch,
+    @Optional()
+    @Inject(RESEARCH_DNS_RESOLVER)
+    private readonly resolver?: ResearchDnsResolver
   ) {
     this.fetch = fetch ?? ((input, init) => globalThis.fetch(input, init));
   }
@@ -70,7 +77,7 @@ export class GeminiGroundedResearchProvider implements ResearchProvider {
       throw this.providerNotConfigured();
     }
 
-    const urls = validateResearchUrls(input.urls ?? []);
+    const urls = await validatePublicResearchUrls(input.urls ?? [], this.resolver);
     const model = this.getSearchModel();
     const response = await this.requestGroundedContent({
       apiKey,
@@ -85,7 +92,11 @@ export class GeminiGroundedResearchProvider implements ResearchProvider {
       throw this.providerUnavailable();
     }
 
-    const sources = normalizeGroundingSources(payload, input.researchRunId);
+    const sources = await normalizeGroundingSources(
+      payload,
+      input.researchRunId,
+      this.resolver
+    );
 
     if (sources.length === 0) {
       throw this.noSources();

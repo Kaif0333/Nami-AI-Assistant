@@ -6,7 +6,10 @@ import { BadRequestException } from "@nestjs/common";
 import { classifyResearchIntent } from "./research-intent-classifier";
 import { parseResearchReport } from "./research-report-parser";
 import { normalizeGroundingSources } from "./research-source-normalizer";
-import { validateResearchUrls } from "./research-url-policy";
+import {
+  validatePublicResearchUrls,
+  validateResearchUrls
+} from "./research-url-policy";
 
 describe("research URL policy", () => {
   it("normalizes, de-duplicates, and bounds public HTTP(S) URLs", () => {
@@ -107,6 +110,30 @@ describe("research URL policy", () => {
       );
     }
   });
+
+  it("rejects public-looking hostnames that resolve to non-public addresses", async () => {
+    for (const address of ["127.0.0.1", "10.1.2.3", "169.254.169.254", "::1", "fd00::1", "fe80::1"]) {
+      await assert.rejects(
+        () =>
+          validatePublicResearchUrls(
+            ["https://public-looking.example.com/docs"],
+            async () => [address]
+          ),
+        (error) => hasExceptionCode(error, "RESEARCH_URL_NOT_ALLOWED"),
+        address
+      );
+    }
+  });
+
+  it("accepts public-looking hostnames only when every resolved address is public", async () => {
+    assert.deepEqual(
+      await validatePublicResearchUrls(
+        ["https://public-looking.example.com/docs"],
+        async () => ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
+      ),
+      ["https://public-looking.example.com/docs"]
+    );
+  });
 });
 
 describe("research intent classifier", () => {
@@ -165,8 +192,8 @@ describe("research intent classifier", () => {
 });
 
 describe("grounding source normalization", () => {
-  it("uses grounding metadata rather than generated link text", () => {
-    const sources = normalizeGroundingSources(
+  it("uses grounding metadata rather than generated link text", async () => {
+    const sources = await normalizeGroundingSources(
       {
         candidates: [
           {
@@ -195,7 +222,8 @@ describe("grounding source normalization", () => {
           }
         ]
       },
-      "run-123"
+      "run-123",
+      publicResolver
     );
 
     assert.equal(sources.length, 1);
@@ -218,8 +246,8 @@ describe("grounding source normalization", () => {
     });
   });
 
-  it("normalizes URL Context metadata and removes duplicate source URLs", () => {
-    const sources = normalizeGroundingSources(
+  it("normalizes URL Context metadata and removes duplicate source URLs", async () => {
+    const sources = await normalizeGroundingSources(
       {
         candidates: [
           {
@@ -243,7 +271,8 @@ describe("grounding source normalization", () => {
           }
         ]
       },
-      "run-456"
+      "run-456",
+      publicResolver
     );
 
     assert.equal(sources.length, 2);
@@ -252,8 +281,8 @@ describe("grounding source normalization", () => {
     assert.equal(sources[1]?.normalizedUrl, "https://example.org/guide");
   });
 
-  it("stores only normalized safe source URLs from provider metadata", () => {
-    const sources = normalizeGroundingSources(
+  it("stores only normalized safe source URLs from provider metadata", async () => {
+    const sources = await normalizeGroundingSources(
       {
         candidates: [
           {
@@ -288,7 +317,8 @@ describe("grounding source normalization", () => {
           }
         ]
       },
-      "run-safe-urls"
+      "run-safe-urls",
+      publicResolver
     );
 
     assert.equal(sources.length, 2);
@@ -302,8 +332,8 @@ describe("grounding source normalization", () => {
     );
   });
 
-  it("requires successful URL Context retrieval before creating a source", () => {
-    const sources = normalizeGroundingSources(
+  it("requires successful URL Context retrieval before creating a source", async () => {
+    const sources = await normalizeGroundingSources(
       {
         candidates: [
           {
@@ -313,12 +343,42 @@ describe("grounding source normalization", () => {
           }
         ]
       },
-      "run-missing-status"
+      "run-missing-status",
+      publicResolver
+    );
+
+    assert.deepEqual(sources, []);
+  });
+
+  it("drops provider sources whose public-looking hostnames resolve to private addresses", async () => {
+    const sources = await normalizeGroundingSources(
+      {
+        candidates: [
+          {
+            groundingMetadata: {
+              groundingChunks: [
+                {
+                  web: {
+                    title: "Unsafe source",
+                    uri: "https://public-looking.example.com/docs"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "run-resolved-private",
+      async () => ["127.0.0.1"]
     );
 
     assert.deepEqual(sources, []);
   });
 });
+
+async function publicResolver() {
+  return ["93.184.216.34"];
+}
 
 describe("research report parser", () => {
   it("parses the exact required report sections", () => {

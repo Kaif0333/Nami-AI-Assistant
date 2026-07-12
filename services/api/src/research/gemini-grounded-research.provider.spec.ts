@@ -141,6 +141,29 @@ describe("GeminiGroundedResearchProvider", () => {
     assert.equal(called, false);
   });
 
+  it("rejects public-looking URL Context hosts that resolve to private addresses before calling Gemini", async () => {
+    let called = false;
+    const provider = configuredProvider(
+      async () => {
+        called = true;
+        return groundedResponse();
+      },
+      async () => ["10.0.0.1"]
+    );
+
+    await assert.rejects(
+      () =>
+        provider.search({
+          query: "Inspect this URL",
+          mode: "fast",
+          researchRunId: "run-resolved-unsafe",
+          urls: ["https://public-looking.example.com/admin"]
+        }),
+      (error) => hasExceptionCode(error, "RESEARCH_URL_NOT_ALLOWED", 400)
+    );
+    assert.equal(called, false);
+  });
+
   it("maps a missing Gemini key to RESEARCH_PROVIDER_NOT_CONFIGURED", async () => {
     const provider = new GeminiGroundedResearchProvider(configService({}), unusedFetch);
 
@@ -225,14 +248,18 @@ describe("GeminiGroundedResearchProvider", () => {
   });
 });
 
-function configuredProvider(fetch: ResearchFetch) {
+function configuredProvider(
+  fetch: ResearchFetch,
+  resolve = async () => ["93.184.216.34"]
+) {
   return new GeminiGroundedResearchProvider(
     configService({
       GEMINI_API_KEY: "configured-test-key",
       RESEARCH_REQUEST_TIMEOUT_MS: "10000",
       RESEARCH_SEARCH_MODEL: "gemini-test-grounding"
     }),
-    fetch
+    fetch,
+    resolve
   );
 }
 

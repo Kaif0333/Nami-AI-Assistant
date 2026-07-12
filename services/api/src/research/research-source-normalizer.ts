@@ -3,12 +3,16 @@ import {
   GeminiGroundingSupport
 } from "./research-provider.types";
 import { ResearchSource } from "./research.types";
-import { validateResearchUrls } from "./research-url-policy";
+import {
+  ResearchDnsResolver,
+  validatePublicResearchUrls
+} from "./research-url-policy";
 
-export function normalizeGroundingSources(
+export async function normalizeGroundingSources(
   response: GeminiGenerateContentResponse,
-  researchRunId: string
-): ResearchSource[] {
+  researchRunId: string,
+  resolver?: ResearchDnsResolver
+): Promise<ResearchSource[]> {
   const sources: ResearchSource[] = [];
   const seenUrls = new Set<string>();
   const retrievedAt = new Date().toISOString();
@@ -25,7 +29,7 @@ export function normalizeGroundingSources(
         continue;
       }
 
-      const normalizedUrl = safelyNormalizeUrl(web.uri);
+      const normalizedUrl = await safelyNormalizeUrl(web.uri, resolver);
 
       if (!normalizedUrl || seenUrls.has(normalizedUrl)) {
         continue;
@@ -60,7 +64,10 @@ export function normalizeGroundingSources(
         continue;
       }
 
-      const normalizedUrl = safelyNormalizeUrl(urlMetadata.retrievedUrl);
+      const normalizedUrl = await safelyNormalizeUrl(
+        urlMetadata.retrievedUrl,
+        resolver
+      );
 
       if (!normalizedUrl || seenUrls.has(normalizedUrl)) {
         continue;
@@ -93,9 +100,9 @@ export function normalizeGroundingSources(
   return sources;
 }
 
-function safelyNormalizeUrl(url: string) {
+async function safelyNormalizeUrl(url: string, resolver?: ResearchDnsResolver) {
   try {
-    return validateResearchUrls([url])[0];
+    return (await validatePublicResearchUrls([url], resolver))[0];
   } catch {
     return undefined;
   }

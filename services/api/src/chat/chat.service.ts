@@ -54,6 +54,7 @@ const maxResearchMetadataTitleCharacters = 160;
 const maxResearchMetadataDomainCharacters = 120;
 const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
+const maxResearchMetadataDecodeRounds = 4;
 const secretLikeResearchValuePattern =
   /(api[_ -]?key|secret|token|password|credential|authorization|cookie)\s*[:=]\s*\S+/i;
 
@@ -1219,10 +1220,33 @@ function redactChatResearchMetadataText(value: string, limit: number) {
 }
 
 function isSecretLikeResearchValue(value: string) {
+  const decoded = decodeChatResearchMetadataText(value);
+
   return (
     sanitizePreview(value) === "[redacted]" ||
-    secretLikeResearchValuePattern.test(value)
+    decoded === undefined ||
+    secretLikeResearchValuePattern.test(decoded)
   );
+}
+
+function decodeChatResearchMetadataText(value: string) {
+  let decoded = value;
+
+  for (let round = 0; round < maxResearchMetadataDecodeRounds; round += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+
+      if (next === decoded) {
+        return decoded;
+      }
+
+      decoded = next;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return /%[0-9A-Fa-f]{2}/.test(decoded) ? undefined : decoded;
 }
 
 function truncateChatResearchMetadataText(value: string, limit: number) {

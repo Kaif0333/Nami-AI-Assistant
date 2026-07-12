@@ -501,6 +501,40 @@ describe("ChatService conversation history", () => {
     }
   });
 
+  it("redacts percent-encoded secret-like research titles and warnings before returning and storing them", async () => {
+    const secretPrefix = ["s", "k"].join("-");
+    const titleSecret = `${secretPrefix}encoded-title-secret-123456`;
+    const warningSecret = `${secretPrefix}encoded-warning-secret-123456`;
+    const researchService = createResearchService([], (mode) => ({
+      ...createResearchRun(mode),
+      sources: [
+        {
+          ...createResearchRun(mode).sources[0],
+          title: encodeURIComponent(`API key: ${titleSecret}`)
+        }
+      ],
+      warnings: [encodeURIComponent(`Research provider token: ${warningSecret}`)]
+    }));
+    const service = createChatService([], [], undefined, [], { researchService });
+
+    const response = await service.sendMessage({
+      message: "What is the latest stable Node.js version?",
+      mode: "chat"
+    });
+    const conversation = await service.getConversation(response.conversationId);
+    const storedResearch = conversation.messages.at(-1)?.metadata.research;
+
+    assert.equal(response.research?.sources[0]?.title, "[redacted]");
+    assert.deepEqual(response.research?.warnings, ["[redacted]"]);
+
+    for (const metadata of [response.research, storedResearch]) {
+      const serialized = JSON.stringify(metadata);
+
+      assert.equal(serialized.includes(titleSecret), false);
+      assert.equal(serialized.includes(warningSecret), false);
+    }
+  });
+
   it("redacts double-encoded secret-like research source paths before returning and storing them", async () => {
     const secretPrefix = ["s", "k"].join("-");
     const pathSecret = `${secretPrefix}double-encoded-secret-123456`;

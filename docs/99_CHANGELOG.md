@@ -11,6 +11,10 @@
 ### Safety
 
 - Hardened source URL handling and sanitized legacy persisted research sources.
+- Research URLs now require DNS resolution to public addresses before Gemini URL
+  Context, source persistence, or source output.
+- Chat research metadata decodes percent-encoded text before secret detection
+  and redacts malformed or over-encoded values.
 
 ## [0.6.5] - 2026-07-11
 

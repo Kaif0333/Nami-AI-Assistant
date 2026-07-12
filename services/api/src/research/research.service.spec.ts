@@ -350,6 +350,34 @@ describe("ResearchService", () => {
     }
   });
 
+  it("drops persisted sources whose public-looking hostnames resolve to private addresses", async () => {
+    const record = databaseResearchRun({
+      sources: [
+        databaseResearchSource({
+          id: "legacy-resolved-private",
+          url: "https://public-looking.example.com/docs",
+          normalizedUrl: "https://public-looking.example.com/docs"
+        })
+      ]
+    });
+    const harness = createHarness({
+      databaseClient: {
+        researchRun: {
+          async findMany() {
+            return [record];
+          },
+          async findUnique() {
+            return record;
+          }
+        }
+      },
+      resolve: async () => ["127.0.0.1"]
+    });
+
+    assert.deepEqual((await harness.service.listResearchRuns())[0]?.sources, []);
+    assert.deepEqual((await harness.service.getResearchRun(record.id)).sources, []);
+  });
+
   it("rejects non-public URLs before provider and audit calls", async () => {
     const harness = createHarness();
 
@@ -379,6 +407,7 @@ function createHarness(options: {
   aiResponses?: string[];
   databaseClient?: unknown;
   evidence?: Array<ResearchEvidence | Error>;
+  resolve?: () => Promise<string[]>;
   updateActionLogError?: Error;
 } = {}) {
   const searchInputs: GroundedSearchInput[] = [];
@@ -452,7 +481,13 @@ function createHarness(options: {
   } as unknown as DatabaseService;
 
   return {
-    service: new ResearchService(provider, aiProvider, actionLogs, database),
+    service: new ResearchService(
+      provider,
+      aiProvider,
+      actionLogs,
+      database,
+      options.resolve ?? (async () => ["93.184.216.34"])
+    ),
     provider,
     searchInputs,
     aiInputs,

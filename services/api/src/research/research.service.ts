@@ -30,7 +30,12 @@ import {
   researchModes,
   researchStatuses
 } from "./research.types";
-import { validateResearchUrls } from "./research-url-policy";
+import {
+  RESEARCH_DNS_RESOLVER,
+  ResearchDnsResolver,
+  validatePublicResearchUrls,
+  validateResearchUrls
+} from "./research-url-policy";
 
 const RESEARCH_FAILED_MESSAGE = "Research failed.";
 const MAX_DEEP_SEARCH_CALLS = 4;
@@ -55,7 +60,10 @@ export class ResearchService {
     private readonly actionLogs: ActionLogsService,
     @Optional()
     @Inject(DatabaseService)
-    private readonly database?: DatabaseService
+    private readonly database?: DatabaseService,
+    @Optional()
+    @Inject(RESEARCH_DNS_RESOLVER)
+    private readonly resolver?: ResearchDnsResolver
   ) {}
 
   getStatus() {
@@ -168,7 +176,7 @@ export class ResearchService {
         take: MAX_LIST_RESULTS
       });
 
-      return records.map((record) => this.toResearchRun(record));
+      return Promise.all(records.map((record) => this.toResearchRun(record)));
     }
 
     return Array.from(this.runs.values())
@@ -211,7 +219,7 @@ export class ResearchService {
       researchRunId,
       urls: request.urls
     });
-    const sources = this.normalizeSources(evidence.sources, researchRunId);
+    const sources = await this.normalizeSources(evidence.sources, researchRunId);
 
     this.assertSources(sources);
 
@@ -251,7 +259,10 @@ export class ResearchService {
           researchRunId,
           urls: request.urls
         });
-        const branchSources = this.normalizeSources(branch.sources, researchRunId);
+        const branchSources = await this.normalizeSources(
+          branch.sources,
+          researchRunId
+        );
 
         if (branchSources.length === 0) {
           warnings.push(`Research branch ${index + 1} failed.`);
@@ -265,7 +276,7 @@ export class ResearchService {
       }
     }
 
-    const sources = this.normalizeSources(
+    const sources = await this.normalizeSources(
       evidence.flatMap((branch) => branch.sources),
       researchRunId
     );
@@ -487,7 +498,7 @@ export class ResearchService {
     };
   }
 
-  private toResearchRun(record: DatabaseResearchRun): ResearchRun {
+  private async toResearchRun(record: DatabaseResearchRun): Promise<ResearchRun> {
     return {
       id: record.id,
       query: record.query,
@@ -508,17 +519,17 @@ export class ResearchService {
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
       metadata: this.recordValue(record.metadata),
-      sources: record.sources.flatMap((source) =>
-        this.toSanitizedResearchSource(source)
-      )
+      sources: (await Promise.all(
+        record.sources.map((source) => this.toSanitizedResearchSource(source))
+      )).flat()
     };
   }
 
-  private toSanitizedResearchSource(
+  private async toSanitizedResearchSource(
     source: DatabaseResearchRun["sources"][number]
-  ): ResearchSource[] {
-    const normalizedUrl = this.safeStoredSourceUrl(source.normalizedUrl) ??
-      this.safeStoredSourceUrl(source.url);
+  ): Promise<ResearchSource[]> {
+    const normalizedUrl = (await this.safeStoredSourceUrl(source.normalizedUrl)) ??
+      (await this.safeStoredSourceUrl(source.url));
 
     if (!normalizedUrl) {
       return [];
@@ -545,33 +556,44 @@ export class ResearchService {
     ];
   }
 
-  private safeStoredSourceUrl(value: string) {
+  private async safeStoredSourceUrl(value: string) {
     try {
-      return validateResearchUrls([value])[0];
+      return (await validatePublicResearchUrls([value], this.resolver))[0];
     } catch {
       return undefined;
     }
   }
 
-  private normalizeSources(sources: ResearchSource[], researchRunId: string) {
+  private async normalizeSources(
+    sources: ResearchSource[],
+    researchRunId: string
+  ) {
     const seen = new Set<string>();
+    const normalizedSources: ResearchSource[] = [];
 
-    return sources.flatMap((source) => {
-      if (seen.has(source.normalizedUrl)) {
-        return [];
+    for (const source of sources) {
+      const normalizedUrl = (await this.safeStoredSourceUrl(source.normalizedUrl)) ??
+        (await this.safeStoredSourceUrl(source.url));
+
+      if (!normalizedUrl || seen.has(normalizedUrl)) {
+        continue;
       }
 
-      seen.add(source.normalizedUrl);
-      return [
-        {
-          ...source,
-          id: randomUUID(),
-          researchRunId,
-          snippet: source.snippet.slice(0, 500),
-          trusted: false as const
-        }
-      ];
-    });
+      seen.add(normalizedUrl);
+      const url = new URL(normalizedUrl);
+      normalizedSources.push({
+        ...source,
+        id: randomUUID(),
+        researchRunId,
+        url: normalizedUrl,
+        normalizedUrl,
+        domain: url.hostname,
+        snippet: source.snippet.slice(0, 500),
+        trusted: false
+      });
+    }
+
+    return normalizedSources;
   }
 
   private buildSynthesisInput(query: string, evidence: ResearchEvidence[]) {
