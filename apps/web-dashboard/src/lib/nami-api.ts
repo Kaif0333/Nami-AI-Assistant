@@ -69,6 +69,10 @@ const maxResearchMetadataDomainCharacters = 120;
 const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
 const maxResearchPathnameDecodeRounds = 4;
+const reservedResearchHostnamePattern =
+  /(?:^|\.)(?:localhost|local|internal|test|example|invalid|home|lan|onion)$/i;
+const literalIpAddressPattern =
+  /^(?:\d{1,3}\.){3}\d{1,3}$|^\[[0-9a-f:.]+\]$/i;
 const secretLikeResearchPathPattern =
   /(?:^|[\\/])(?:api[_-]?key|secrets?|(?:access[_-]?)?tokens?|passwords?|credentials?|authorization|cookie)(?:[\\/:=]|$)/i;
 const secretLikeResearchValuePattern =
@@ -333,7 +337,7 @@ export async function getChatConversation(id: string) {
     ...conversation,
     messages: conversation.messages.map((message) => ({
       ...message,
-      research: parseChatResearchMetadata(message.metadata.research)
+      research: sanitizeChatResearchMetadata(message.metadata.research)
     }))
   };
 }
@@ -378,7 +382,7 @@ export async function getResearchRun(id: string) {
   return apiRequest<ResearchRun>(`/research/${encodeURIComponent(id)}`);
 }
 
-function parseChatResearchMetadata(value: unknown) {
+export function sanitizeChatResearchMetadata(value: unknown) {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -428,7 +432,7 @@ function sanitizeChatResearchSource(value: unknown) {
     return [];
   }
 
-  const url = sanitizeChatResearchUrl(value.url);
+  const url = sanitizePublicResearchUrl(value.url);
 
   if (!url) {
     return [];
@@ -449,42 +453,64 @@ function sanitizeChatResearchSource(value: unknown) {
   ];
 }
 
-function sanitizeChatResearchUrl(value: string) {
+export function sanitizePublicResearchUrl(value: string) {
   try {
     const parsed = new URL(value);
 
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    if (
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      parsed.username ||
+      parsed.password ||
+      !isPublicResearchHostname(parsed.hostname)
+    ) {
       return undefined;
     }
 
-    if (isSecretLikeResearchValue(parsed.hostname)) {
-      return undefined;
-    }
-
-    const pathnameLimit = maxResearchMetadataUrlCharacters - parsed.origin.length;
-
-    if (pathnameLimit < 1) {
-      return undefined;
-    }
-
-    const pathname = decodeResearchPathname(parsed.pathname);
+    const hostname = decodeResearchComponent(parsed.hostname);
+    const pathname = decodeResearchComponent(parsed.pathname);
+    const query = decodeResearchComponent(parsed.search);
+    const fragment = decodeResearchComponent(parsed.hash);
 
     if (
+      !hostname ||
       !pathname ||
-      isSecretLikeResearchValue(pathname) ||
+      query === undefined ||
+      fragment === undefined ||
+      [hostname, pathname, query, fragment].some(isSecretLikeResearchValue) ||
       secretLikeResearchPathPattern.test(pathname)
     ) {
-      return parsed.origin;
+      return undefined;
     }
 
-    return `${parsed.origin}${parsed.pathname.slice(0, pathnameLimit)}`;
+    const sanitized = `${parsed.origin}${parsed.pathname}`;
+
+    return sanitized.length <= maxResearchMetadataUrlCharacters
+      ? sanitized
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
+function isPublicResearchHostname(value: string) {
+  const hostname = value.toLowerCase().replace(/\.$/, "");
+
+  return (
+    hostname.includes(".") &&
+    !literalIpAddressPattern.test(hostname) &&
+    !reservedResearchHostnamePattern.test(hostname) &&
+    !isSecretLikeResearchValue(hostname)
+  );
+}
+
 function redactChatResearchMetadataText(value: string, limit: number) {
-  if (isSecretLikeResearchValue(value)) {
+  const decoded = decodeResearchComponent(value);
+
+  if (
+    !decoded ||
+    isSecretLikeResearchValue(value) ||
+    isSecretLikeResearchValue(decoded)
+  ) {
     return "[redacted]";
   }
 
@@ -495,7 +521,7 @@ function isSecretLikeResearchValue(value: string) {
   return secretLikeResearchValuePattern.test(value);
 }
 
-function decodeResearchPathname(value: string) {
+function decodeResearchComponent(value: string) {
   let decoded = value;
 
   for (let round = 0; round < maxResearchPathnameDecodeRounds; round += 1) {

@@ -29,6 +29,8 @@ import {
   getApiBaseUrl,
   getChatConversation,
   listChatConversations,
+  sanitizeChatResearchMetadata,
+  sanitizePublicResearchUrl,
   sendChatMessage
 } from "@/lib/nami-api";
 import type {
@@ -98,19 +100,8 @@ function toUiMessage(message: {
     id: message.id,
     role: message.role === "user" ? "Kaif" : "Nami",
     text: message.content,
-    research: message.research
+    research: sanitizeChatResearchMetadata(message.research)
   };
-}
-
-function safeCitationUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function formatConversationTime(value: string) {
@@ -322,6 +313,7 @@ export default function ChatPage() {
         conversationId,
         message
       });
+      const research = sanitizeChatResearchMetadata(response.research);
 
       setConversationId(response.conversationId);
       setMessages((current) => [
@@ -331,14 +323,14 @@ export default function ChatPage() {
           role: "Nami",
           text: response.reply,
           wasTruncated: response.wasTruncated,
-          research: response.research
+          research
         }
       ]);
       setTimeline((current) => [
         {
           id: createId(),
           label: "Nami response received",
-          detail: formatResponseTimelineDetail(response),
+          detail: formatResponseTimelineDetail({ ...response, research }),
           status: "ok"
         },
         ...current.filter((item) => item.id !== requestEventId)
@@ -495,7 +487,7 @@ export default function ChatPage() {
                           {message.research.sources.length > 0 ? (
                             <ol className="mt-2 space-y-1.5">
                               {message.research.sources.map((source, index) => {
-                                const href = safeCitationUrl(source.url);
+                                const href = sanitizePublicResearchUrl(source.url);
 
                                 return (
                                   <li

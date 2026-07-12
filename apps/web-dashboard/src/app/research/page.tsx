@@ -29,7 +29,8 @@ import {
   getResearchRun,
   getResearchStatus,
   listResearchRuns,
-  runResearch
+  runResearch,
+  sanitizePublicResearchUrl
 } from "@/lib/nami-api";
 import type {
   ResearchMode,
@@ -58,17 +59,6 @@ function formatTimestamp(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
-}
-
-function safeExternalUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function statusVariant(status: ResearchRun["status"]) {
@@ -101,7 +91,7 @@ function ReportList({ items }: { items: string[] }) {
 }
 
 function SourceRow({ source }: { source: ResearchSource }) {
-  const href = safeExternalUrl(source.url);
+  const href = sanitizePublicResearchUrl(source.url);
 
   return (
     <div className="border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0">
