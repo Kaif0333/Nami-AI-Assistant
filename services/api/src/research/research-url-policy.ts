@@ -10,8 +10,10 @@ const allowedPorts = new Set(["", "80", "443"]);
 const maxUrlDecodeRounds = 4;
 const blockedHostnameSuffixes = [
   ".test",
+  ".example",
   ".invalid",
   ".localhost",
+  ".localdomain",
   ".local",
   ".internal",
   ".lan",
@@ -103,7 +105,7 @@ function decodeUrlComponent(value: string) {
     }
   }
 
-  return decoded;
+  return /%[0-9A-Fa-f]{2}/.test(decoded) ? undefined : decoded;
 }
 
 function urlNotAllowed() {

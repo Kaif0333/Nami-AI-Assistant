@@ -70,7 +70,7 @@ const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
 const maxResearchPathnameDecodeRounds = 4;
 const reservedResearchHostnamePattern =
-  /(?:^|\.)(?:localhost|local|internal|test|example|invalid|home|lan|onion)$/i;
+  /(?:^|\.)(?:localhost|localdomain|local|internal|test|example|invalid|home|lan|onion)$/i;
 const blockedResearchHostnameSuffixes = [
   "nip.io",
   "sslip.io",

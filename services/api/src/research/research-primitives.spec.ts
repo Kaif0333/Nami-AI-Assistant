@@ -40,9 +40,15 @@ describe("research URL policy", () => {
   });
 
   it("rejects non-public hosts, credentials, schemes, and ports", () => {
+    const deeplyEncodedSecretPath = encodeEveryCharacter(
+      "credentials/token/sk-secret-123456",
+      5
+    );
     const rejectedUrls = [
       "http://localhost/admin",
       "http://api.localhost/admin",
+      "http://localhost.localdomain/admin",
+      "https://foo.example/docs",
       "http://127.0.0.1.nip.io/admin",
       "http://169.254.169.254.sslip.io/latest",
       "http://api.localtest.me/admin",
@@ -89,7 +95,8 @@ describe("research URL policy", () => {
       "ftp://example.com/archive",
       "https://example.com:8080/admin",
       "https://example.com/docs?api_key=secret-value",
-      "https://example.com/docs#access_token=secret-value"
+      "https://example.com/docs#access_token=secret-value",
+      `https://example.com/${deeplyEncodedSecretPath}`
     ];
 
     for (const url of rejectedUrls) {
@@ -453,4 +460,16 @@ function hasExceptionCode(error: unknown, code: string) {
     "code" in response &&
     response.code === code
   );
+}
+
+function encodeEveryCharacter(value: string, rounds: number) {
+  let encoded = value;
+
+  for (let round = 0; round < rounds; round += 1) {
+    encoded = [...Buffer.from(encoded, "utf8")]
+      .map((byte) => `%${byte.toString(16).padStart(2, "0")}`)
+      .join("");
+  }
+
+  return encoded;
 }
