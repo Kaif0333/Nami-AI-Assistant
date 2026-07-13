@@ -32,6 +32,7 @@
     "dev:desktop": "corepack pnpm --filter @nami/desktop dev",
     "build:desktop": "corepack pnpm --filter @nami/desktop build",
     "test:e2e": "corepack pnpm build:api && corepack pnpm build:web && corepack pnpm exec playwright test",
+    "smoke:research": "node scripts/smoke-research.mjs",
     "test:all": "corepack pnpm test && corepack pnpm test:e2e",
     "build": "corepack pnpm build:api && corepack pnpm build:web && corepack pnpm build:desktop",
     "lint": "corepack pnpm -r --if-present lint",
