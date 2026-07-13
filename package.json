@@ -37,7 +37,8 @@
     "build": "corepack pnpm build:api && corepack pnpm build:web && corepack pnpm build:desktop",
     "lint": "corepack pnpm -r --if-present lint",
     "typecheck": "corepack pnpm -r --if-present typecheck",
-    "test": "corepack pnpm -r --if-present test"
+    "test:scripts": "node --test scripts/*.spec.mjs",
+    "test": "corepack pnpm test:scripts && corepack pnpm -r --if-present test"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

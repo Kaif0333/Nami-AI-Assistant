@@ -38,7 +38,7 @@ Request:
 }
 ```
 
-Response:
+Success response:
 ```json
 {
   "success": true,
@@ -364,7 +364,7 @@ Response:
     "id": "uuid",
     "query": "string",
     "mode": "fast|deep",
-    "status": "completed|partial|failed",
+    "status": "completed|partial",
     "summary": "string",
     "keyFindings": [],
     "recommendations": [],
@@ -401,13 +401,29 @@ Response:
 }
 ```
 
+Failure response:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RESEARCH_PROVIDER_UNAVAILABLE",
+    "message": "Research provider is unavailable. Please try again.",
+    "details": {}
+  }
+}
+```
+
+Provider and validation failures may persist a failed run for audit/history, but
+`POST /api/research` returns the standard error envelope for failed execution.
+
 `GET /api/research`
 
 Optional filters: `mode`, `status`, `query`.
 
 `GET /api/research/:id`
 
-Returns one persisted research run with normalized sources.
+Returns one persisted research run with normalized sources. `GET` responses may
+include `status: "failed"` for failed runs retained in history.
 
 Research requests reject local/private URLs, credentials in URLs, non-HTTP(S)
 schemes, unsupported ports, and source metadata that resolves to private

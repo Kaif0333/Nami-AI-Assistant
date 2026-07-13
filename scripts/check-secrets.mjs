@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
-const scanHistory = process.argv.includes("--history");
-const findings = [];
+const HISTORICAL_SENTINEL_PATH = "services/api/src/chat/chat.service.spec.ts";
 
 const secretPatterns = [
   { kind: "openai-like", pattern: /sk-(proj-)?[A-Za-z0-9_-]{20,}/g },
@@ -21,43 +21,51 @@ const secretPatterns = [
   }
 ];
 
-const trackedFiles = git(["ls-files", "-z"])
-  .split("\0")
-  .filter(Boolean);
-
-for (const file of trackedFiles) {
-  scanTrackedFile(file, "HEAD");
+if (isMainModule()) {
+  run();
 }
 
-if (scanHistory) {
-  const commits = git(["rev-list", "--all"])
-    .split(/\r?\n/)
+function run() {
+  const scanHistory = process.argv.includes("--history");
+  const findings = [];
+  const trackedFiles = git(["ls-files", "-z"])
+    .split("\0")
     .filter(Boolean);
 
-  for (const commit of commits) {
-    scanCommit(commit);
+  for (const file of trackedFiles) {
+    scanTrackedFile(file, "HEAD", findings);
   }
+
+  if (scanHistory) {
+    const commits = git(["rev-list", "--all"])
+      .split(/\r?\n/)
+      .filter(Boolean);
+
+    for (const commit of commits) {
+      scanCommit(commit, findings);
+    }
+  }
+
+  checkEnvFilesAreUntrackedAndIgnored(findings);
+
+  if (findings.length > 0) {
+    console.error("Secret check failed. Findings are metadata only; values are not printed.");
+    for (const finding of uniqueFindings(findings)) {
+      console.error(
+        `- ${finding.location} ${finding.kind}${finding.name ? ` ${finding.name}` : ""}`
+      );
+    }
+    process.exit(1);
+  }
+
+  console.log(
+    scanHistory
+      ? "Secret check passed for tracked files and Git history."
+      : "Secret check passed for tracked files."
+  );
 }
 
-checkEnvFilesAreUntrackedAndIgnored();
-
-if (findings.length > 0) {
-  console.error("Secret check failed. Findings are metadata only; values are not printed.");
-  for (const finding of uniqueFindings(findings)) {
-    console.error(
-      `- ${finding.location} ${finding.kind}${finding.name ? ` ${finding.name}` : ""}`
-    );
-  }
-  process.exit(1);
-}
-
-console.log(
-  scanHistory
-    ? "Secret check passed for tracked files and Git history."
-    : "Secret check passed for tracked files."
-);
-
-function scanTrackedFile(file, revision) {
+function scanTrackedFile(file, revision, findings) {
   const fullPath = join(root, file);
 
   if (!existsSync(fullPath)) {
@@ -70,10 +78,10 @@ function scanTrackedFile(file, revision) {
   }
 
   const content = buffer.toString("utf8");
-  scanContent(content, `${revision}:${file}`);
+  findings.push(...scanContentForSecrets(content, `${revision}:${file}`));
 }
 
-function scanCommit(commit) {
+function scanCommit(commit, findings) {
   const files = git(["ls-tree", "-r", "--name-only", "-z", commit])
     .split("\0")
     .filter(Boolean);
@@ -89,30 +97,31 @@ function scanCommit(commit) {
       continue;
     }
 
-    scanContent(show.stdout.toString("utf8"), `${commit.slice(0, 7)}:${file}`);
+    findings.push(
+      ...scanContentForSecrets(show.stdout.toString("utf8"), `${commit.slice(0, 7)}:${file}`)
+    );
   }
 }
 
-function scanContent(content, locationPrefix) {
+export function scanContentForSecrets(content, locationPrefix) {
+  const findings = [];
   const lines = content.split(/\r?\n/);
 
   for (const [index, line] of lines.entries()) {
-    if (isKnownHistoricalTestSentinel(line, locationPrefix)) {
-      continue;
-    }
+    const lineToScan = removeKnownHistoricalTestSentinels(line, locationPrefix);
 
     for (const { kind, pattern } of secretPatterns) {
       pattern.lastIndex = 0;
-      if (pattern.test(line)) {
+      if (pattern.test(lineToScan)) {
         findings.push({
           location: `${locationPrefix}:${index + 1}`,
           kind,
-          name: extractEnvName(line)
+          name: extractEnvName(lineToScan)
         });
       }
     }
 
-    const envFinding = findUnsafeEnvAssignment(line);
+    const envFinding = findUnsafeEnvAssignment(lineToScan);
     if (envFinding) {
       findings.push({
         location: `${locationPrefix}:${index + 1}`,
@@ -121,19 +130,43 @@ function scanContent(content, locationPrefix) {
       });
     }
   }
+
+  return findings;
 }
 
-function isKnownHistoricalTestSentinel(line, locationPrefix) {
-  if (!locationPrefix.endsWith("services/api/src/chat/chat.service.spec.ts")) {
-    return false;
+function removeKnownHistoricalTestSentinels(line, locationPrefix) {
+  const location = parseLocationPrefix(locationPrefix);
+
+  if (location.revision === "HEAD" || location.path !== HISTORICAL_SENTINEL_PATH) {
+    return line;
   }
 
   const historicalPrefix = "sk" + "-encoded-";
+  const historicalSentinels = [
+    `${historicalPrefix}title-secret-123456`,
+    `${historicalPrefix}warning-secret-123456`
+  ];
 
-  return (
-    line.includes(`"${historicalPrefix}title-secret-123456"`) ||
-    line.includes(`"${historicalPrefix}warning-secret-123456"`)
-  );
+  let sanitized = line;
+
+  for (const sentinel of historicalSentinels) {
+    sanitized = sanitized.split(sentinel).join("");
+  }
+
+  return sanitized;
+}
+
+function parseLocationPrefix(locationPrefix) {
+  const separatorIndex = locationPrefix.indexOf(":");
+
+  if (separatorIndex === -1) {
+    return { revision: "", path: locationPrefix };
+  }
+
+  return {
+    revision: locationPrefix.slice(0, separatorIndex),
+    path: locationPrefix.slice(separatorIndex + 1)
+  };
 }
 
 function findUnsafeEnvAssignment(line) {
@@ -164,7 +197,7 @@ function extractEnvName(line) {
   return match?.[1] ?? "";
 }
 
-function checkEnvFilesAreUntrackedAndIgnored() {
+function checkEnvFilesAreUntrackedAndIgnored(findings) {
   const trackedEnvFiles = git([
     "ls-files",
     "--",
@@ -219,4 +252,8 @@ function git(args) {
     encoding: "utf8",
     maxBuffer: 50 * 1024 * 1024
   });
+}
+
+function isMainModule() {
+  return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 }
