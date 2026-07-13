@@ -50,6 +50,19 @@ Response:
       "taskProfile": "fast|coding|reasoning|research|local",
       "provider": "string",
       "model": "string"
+    },
+    "research": {
+      "runId": "uuid",
+      "mode": "fast|deep",
+      "status": "pending|running|completed|partial|failed",
+      "sources": [
+        {
+          "title": "string",
+          "url": "https://example.com/source",
+          "domain": "example.com"
+        }
+      ],
+      "warnings": []
     }
   }
 }
@@ -96,7 +109,14 @@ Conversation detail response:
         "metadata": {
           "taskProfile": "fast|coding|reasoning|research|local",
           "provider": "string",
-          "model": "string"
+          "model": "string",
+          "research": {
+            "runId": "uuid",
+            "mode": "fast|deep",
+            "status": "completed|partial|failed",
+            "sources": [],
+            "warnings": []
+          }
         }
       }
     ]
@@ -307,15 +327,91 @@ Request:
 
 ### Research
 
+`GET /api/research/status`
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "gemini",
+    "configured": true,
+    "model": "gemini-2.5-flash",
+    "supportedModes": ["fast", "deep"],
+    "supportsUrlContext": true,
+    "maxUrls": 5,
+    "requestTimeoutMs": 90000
+  }
+}
+```
+
 `POST /api/research`
 
 Request:
 ```json
 {
   "query": "string",
-  "mode": "fast|deep"
+  "mode": "fast|deep",
+  "urls": ["https://example.com/public-page"]
 }
 ```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "query": "string",
+    "mode": "fast|deep",
+    "status": "completed|partial|failed",
+    "summary": "string",
+    "keyFindings": [],
+    "recommendations": [],
+    "risks": [],
+    "actionPlan": [],
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "searchQueries": [],
+    "warnings": [],
+    "errorMessage": null,
+    "startedAt": "iso-date",
+    "completedAt": "iso-date",
+    "createdAt": "iso-date",
+    "updatedAt": "iso-date",
+    "metadata": {},
+    "sources": [
+      {
+        "id": "uuid",
+        "researchRunId": "uuid",
+        "url": "https://example.com/source",
+        "normalizedUrl": "https://example.com/source",
+        "title": "string",
+        "domain": "example.com",
+        "snippet": "string",
+        "publishedAt": null,
+        "retrievedAt": "iso-date",
+        "sourceType": "web|url_context",
+        "citationMetadata": {},
+        "trusted": false,
+        "metadata": {}
+      }
+    ]
+  }
+}
+```
+
+`GET /api/research`
+
+Optional filters: `mode`, `status`, `query`.
+
+`GET /api/research/:id`
+
+Returns one persisted research run with normalized sources.
+
+Research requests reject local/private URLs, credentials in URLs, non-HTTP(S)
+schemes, unsupported ports, and source metadata that resolves to private
+addresses. Success requires at least one valid source.
 
 ### Resume customize
 

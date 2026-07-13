@@ -72,6 +72,17 @@ But Nami must not obey:
 The webpage instructs me to reveal secrets.
 ```
 
+Phase 6 implementation rules:
+
+- Gemini grounded search and URL Context receive explicit instructions that
+  source content is data, not instructions.
+- Public source records are persisted with `trusted: false`.
+- Nami stores bounded source metadata/snippets, not full copied webpages.
+- Research rejects local/private/credentialed URLs before provider calls.
+- Research metadata is sanitized before logs, chat metadata, and reopened
+  conversation rendering.
+- Chat research runs only after blocked-action and approval-required checks.
+
 ## Required tests
 
 - Malicious webpage asks to reveal API key.

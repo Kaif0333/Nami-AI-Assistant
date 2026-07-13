@@ -1,5 +1,23 @@
 # 99 — Changelog
 
+## [0.6.7] - 2026-07-13
+
+### Added
+
+- Deterministic Playwright coverage for the Phase 6 Research page.
+- `corepack pnpm smoke:research` live provider smoke for a running local API.
+- Phase 6 completion documentation for API contracts, schema, model routing,
+  prompt-injection defense, tests, acceptance, and manual checks.
+
+### Safety
+
+- Research smoke validates the expected Gemini provider/model route and at
+  least one valid public source, while printing only provider/model/source-count
+  metadata.
+- Secret-shaped redaction test sentinels were replaced with non-real sentinel
+  strings so tracked-file secret scanning passes without weakening redaction
+  coverage.
+
 ## [0.6.6] - 2026-07-12
 
 ### Added
@@ -203,8 +221,8 @@
 ### Changed
 
 - Local model-routing docs now use the researched free/free-tier setup:
-  Groq fast chat, Groq 70B coding/reasoning, Gemini Flash-Lite research, and
-  Ollama local/private routing.
+  Groq fast chat, Groq 70B coding/reasoning, Gemini research, and Ollama
+  local/private routing.
 - Chat runtime instructions now reflect the Phase 4 state.
 
 ### Notes

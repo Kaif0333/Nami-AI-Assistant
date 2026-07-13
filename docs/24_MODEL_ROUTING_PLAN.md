@@ -12,6 +12,7 @@ Use the right model for the right task to reduce cost and improve reliability.
 | Complex planning | `AI_REASONING_PROVIDER` / `AI_REASONING_MODEL` |
 | Coding | `AI_CODING_PROVIDER` / `AI_CODING_MODEL` |
 | Live voice | OpenAI Realtime |
+| Web research search/grounding | `RESEARCH_SEARCH_PROVIDER` / `RESEARCH_SEARCH_MODEL` |
 | Web research synthesis | `AI_RESEARCH_PROVIDER` / `AI_RESEARCH_MODEL` |
 | Resume customization | reasoning model / structured prompts |
 | Email draft | fast model unless sensitive |
@@ -26,12 +27,23 @@ Use the right model for the right task to reduce cost and improve reliability.
 | Fast/default chat | Groq `llama-3.1-8b-instant` | Lowest latency in local benchmark. |
 | Coding/programming | Groq `llama-3.3-70b-versatile` | Stronger practical code output while still fast on the configured key. |
 | Heavy reasoning/planning | Groq `llama-3.3-70b-versatile` | Better quality than 8B for complex work and passed live smoke. |
+| Research search/grounding | Gemini `gemini-2.5-flash` | Live-tested on 2026-07-13 with Google Search grounding and sources. |
 | Research synthesis | Gemini `gemini-3.1-flash-lite` | Current Gemini model with free-tier availability and long-context fit. |
 | Local/private | Ollama `qwen3:4b` | Keeps explicitly local/private requests on the local model. |
 
 OpenRouter free coding candidates such as `qwen/qwen3-coder:free` remain useful
 backup options, but local testing saw upstream rate limits. Do not make them the
 default route until they are reliable for the configured account.
+
+Research model notes:
+
+- `RESEARCH_SEARCH_MODEL=gemini-2.5-flash` is the current grounded-search
+  default because live verification showed `gemini-2.5-flash-lite` is
+  unavailable to the configured key.
+- `AI_RESEARCH_MODEL=gemini-3.1-flash-lite` remains the synthesis route for
+  deep research.
+- These are dated development defaults, not a guarantee of future free-tier
+  availability.
 
 ## Fallback routing
 

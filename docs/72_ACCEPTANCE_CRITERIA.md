@@ -78,3 +78,26 @@ A phase is complete only when:
 - Text fallback works without voice provider setup.
 - Unit tests cover voice status, setup errors, validation, Groq/OpenAI STT, Groq/OpenAI TTS, and browser TTS fallback service logic.
 - Docs and changelog are updated.
+
+## Phase 6 acceptance
+
+- Research API exposes status, create, list, and get endpoints.
+- Fast and deep research modes exist.
+- Research uses real Gemini grounded search; no runtime fake/mock/dummy research
+  provider exists.
+- `RESEARCH_SEARCH_MODEL` is documented as `gemini-2.5-flash` for the current
+  live-tested key.
+- Research success requires at least one valid public source.
+- Public URL analysis rejects local/private/credentialed/unsupported URLs.
+- Research runs and sources persist through Prisma/PostgreSQL when configured.
+- Local tests remain deterministic and do not consume external provider quota.
+- Dashboard `/research` page supports mode selection, optional URL input,
+  structured report display, source links, and recent history reload.
+- Chat routes current-information or explicit research requests through
+  research after blocked/approval-required checks.
+- Chat citations persist when conversations are reopened.
+- Research action logs are sanitized.
+- `corepack pnpm test:e2e` includes deterministic research page coverage.
+- `corepack pnpm smoke:research` passes against the configured real provider.
+- Full quality gate, secret checks, docs, and changelog are complete.
+- Phase 7 n8n automation has not started.

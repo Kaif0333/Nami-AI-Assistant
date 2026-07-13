@@ -26,7 +26,11 @@ Implement push-to-talk voice abstraction with real provider routing and explicit
 
 ## Phase 6 prompt
 
-Implement research service abstraction with fast/deep modes and source storage. Add UI.
+Implement research service abstraction with fast/deep modes, real Gemini
+grounded search, source storage, safe public URL validation, Research page UI,
+chat citations, deterministic e2e coverage, and a real-provider smoke command.
+Do not implement browser automation, local file access, document generation, or
+n8n workflows in Phase 6.
 
 ## Phase 7 prompt
 

@@ -52,7 +52,7 @@ Do not build all features in one prompt.
 
 ## Phase 0 foundation
 
-This repository currently contains only the foundation for Nami:
+Phase 0 added the foundation for Nami:
 
 - Canonical documentation copied into the root and `docs/`
 - pnpm workspace configuration
@@ -61,9 +61,9 @@ This repository currently contains only the foundation for Nami:
 - `.env.example` with placeholders only
 - `.env.local` ignored by Git
 
-No AI chat, voice, memory, n8n, browser automation, screen control, email/calendar,
-resume/job workflow, document generation, or deployment feature is implemented in
-Phase 0.
+No AI chat, voice, memory, n8n, browser automation, screen control,
+email/calendar, resume/job workflow, document generation, or deployment feature
+was implemented in Phase 0.
 
 ## Phase 1 dashboard shell
 
@@ -121,6 +121,41 @@ Phase 4 adds the first durable data foundation:
 Semantic vector search is schema-ready but remains disabled until a real embedding
 provider/model is configured. No synthetic embeddings are generated.
 
+## Phase 5 voice
+
+Phase 5 adds the first safe voice loop:
+
+- Voice page in the dashboard.
+- `GET /api/voice/status`, `POST /api/voice/transcriptions`, and
+  `POST /api/voice/speech`.
+- Push-to-talk only; no wake word or background recording.
+- Real STT/TTS provider routing for Groq/OpenAI when configured.
+- Browser speech synthesis fallback for TTS, explicitly marked as client-side.
+- Automatic send after push-to-talk transcription and automatic speech for
+  Nami's reply when TTS/browser speech is available.
+
+No fake transcript, fake audio, wake word, or hidden recording was added.
+
+## Phase 6 research
+
+Phase 6 adds source-backed web research:
+
+- `ResearchModule` in the API with fast and deep modes.
+- Real Gemini grounded search using `RESEARCH_SEARCH_MODEL`, currently
+  `gemini-2.5-flash` after live verification on 2026-07-13.
+- Optional explicit public URL analysis through Gemini URL Context.
+- Prisma persistence for research runs and normalized source metadata.
+- `/research` dashboard page with mode selection, URL input, source display,
+  recent history, and detail reload.
+- Automatic chat routing for current-information or explicit research requests.
+- Chat citations that persist when conversations are reopened.
+- Deterministic Playwright coverage plus `corepack pnpm smoke:research` for a
+  real provider smoke against a running local API.
+
+Research treats public web content as untrusted data, rejects local/private URLs,
+requires at least one valid source for success, and does not implement browser
+automation, document generation, n8n workflows, or arbitrary local file access.
+
 ## Local verification
 
 Use Corepack so the repository-pinned pnpm version is used:
@@ -140,3 +175,13 @@ the desktop shell starting a web build at the same time as the root web build.
 Playwright and the static web server are repository dev dependencies, so e2e
 tests should run with `corepack pnpm test:e2e` instead of transient `npx`
 packages.
+
+For Phase 6 live research acceptance, start the built API with the repository
+root as the working directory, wait for `/api/health`, then run:
+
+```bash
+corepack pnpm smoke:research
+```
+
+The smoke command uses the configured real Gemini provider and prints only
+provider/model/source-count metadata.

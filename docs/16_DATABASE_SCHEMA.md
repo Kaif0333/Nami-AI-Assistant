@@ -11,6 +11,7 @@ The implemented schema lives in:
 - `services/api/prisma/schema.prisma`
 - `services/api/prisma/migrations/20260707161000_phase4_database_memory/migration.sql`
 - `services/api/prisma/migrations/20260708065000_enable_supabase_rls/migration.sql`
+- `services/api/prisma/migrations/20260710190000_phase6_research/migration.sql`
 
 Use Prisma for schema/types and organized SQL migrations. The Phase 4 migration
 enables `pgcrypto` and `vector`, then creates:
@@ -29,6 +30,12 @@ schema tables and conditionally revokes `anon`/`authenticated` table access
 when those Supabase roles exist. Nami's backend continues to access these
 tables through the database owner/service connection; direct public Data API
 access must be added later with explicit policies for the exact feature.
+
+Phase 6 adds `ResearchMode`, `ResearchStatus`, `ResearchSourceType`,
+`research_runs`, and `research_sources`. The migration enables RLS, conditionally
+revokes Supabase public roles, indexes status/mode creation time, indexes source
+run IDs and normalized URLs, and enforces `trusted = false` for public research
+sources.
 
 Future modules may add the remaining tables from this planning document when
 their phases begin.
@@ -189,3 +196,41 @@ their phases begin.
 - value JSONB
 - is_sensitive BOOLEAN
 - updated_at TIMESTAMP
+
+### research_runs
+
+- id UUID PK
+- query TEXT
+- mode ENUM `fast|deep`
+- status ENUM `pending|running|completed|partial|failed`
+- provider TEXT
+- model TEXT
+- search_queries TEXT[]
+- summary TEXT
+- key_findings JSONB
+- recommendations JSONB
+- risks JSONB
+- action_plan JSONB
+- warnings TEXT[]
+- error_message TEXT
+- started_at TIMESTAMP
+- completed_at TIMESTAMP
+- metadata JSONB
+- created_at TIMESTAMP
+- updated_at TIMESTAMP
+
+### research_sources
+
+- id UUID PK
+- research_run_id UUID FK
+- url TEXT
+- normalized_url TEXT
+- title TEXT
+- domain TEXT
+- snippet TEXT
+- published_at TIMESTAMP
+- retrieved_at TIMESTAMP
+- source_type ENUM `web|url_context`
+- citation_metadata JSONB
+- trusted BOOLEAN DEFAULT false
+- metadata JSONB

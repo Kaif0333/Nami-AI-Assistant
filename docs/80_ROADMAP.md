@@ -19,10 +19,11 @@ Database + memory center + bounded chat recall + natural-language memory command
 Push-to-talk + STT/TTS abstraction.
 
 ## Phase 6 — Research
-Web research, summaries, sources.
+Source-backed web research, summaries, citations, persistence, dashboard
+history, chat citations, deterministic e2e coverage, and real-provider smoke.
 
 ## Phase 7 — n8n
-Webhook bridge and test workflows.
+Webhook bridge and test workflows. Not started until Kaif approves Phase 7.
 
 ## Phase 8 — Resume/Jobs
 Resume customization and job tracker.
