@@ -663,8 +663,8 @@ describe("ChatService conversation history", () => {
   });
 
   it("redacts encoded secret-like research metadata when reopening a stored conversation", async () => {
-    const titleSecret = "sk-encoded-title-secret-123456";
-    const warningSecret = "sk-encoded-warning-secret-123456";
+    const titleSecret = "encoded-title-secret-sentinel";
+    const warningSecret = "encoded-warning-secret-sentinel";
     const service = createChatService([], [], undefined, [], {
       database: createConversationDatabase({
         research: {
