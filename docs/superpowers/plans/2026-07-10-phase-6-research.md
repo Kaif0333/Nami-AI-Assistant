@@ -4,14 +4,14 @@
 
 **Goal:** Build a real, source-backed Phase 6 research system with fast/deep modes, persisted sources, automatic chat routing, a dedicated dashboard, and live Gemini verification.
 
-**Architecture:** A NestJS `ResearchModule` owns research orchestration and persistence behind a provider-neutral interface. A real Gemini adapter uses Google Search grounding with `gemini-2.5-flash-lite`, while the existing research model route synthesizes deep reports. Prisma stores runs and sources, and both the Research page and Chat consume one typed result contract.
+**Architecture:** A NestJS `ResearchModule` owns research orchestration and persistence behind a provider-neutral interface. A real Gemini adapter uses Google Search grounding with `gemini-2.5-flash`, while the existing research model route synthesizes deep reports. Prisma stores runs and sources, and both the Research page and Chat consume one typed result contract.
 
 **Tech Stack:** pnpm workspaces, NestJS 11, TypeScript 5.9, Prisma 7, PostgreSQL/Supabase, Next.js 16, React 19, Tailwind CSS 4, Node test runner, Playwright.
 
 ## Global Constraints
 
 - Use real research and AI providers only; no runtime mock, fake, dummy, or fabricated response provider.
-- Default grounded search model is `gemini-2.5-flash-lite`; synthesis uses `AI_RESEARCH_PROVIDER` and `AI_RESEARCH_MODEL`.
+- Default grounded search model is `gemini-2.5-flash`; synthesis uses `AI_RESEARCH_PROVIDER` and `AI_RESEARCH_MODEL`.
 - Keep arbitrary local files, Playwright navigation, form submission, and document generation outside Phase 6.
 - Reject non-public URLs and treat all external content as untrusted data.
 - Never persist full copied webpages or expose secrets in logs, APIs, tests, or Git.
@@ -681,7 +681,7 @@ Add empty/example-only values:
 
 ```dotenv
 RESEARCH_SEARCH_PROVIDER=gemini
-RESEARCH_SEARCH_MODEL=gemini-2.5-flash-lite
+RESEARCH_SEARCH_MODEL=gemini-2.5-flash
 RESEARCH_DEEP_MAX_SEARCHES=4
 RESEARCH_MAX_URLS=5
 RESEARCH_REQUEST_TIMEOUT_MS=90000

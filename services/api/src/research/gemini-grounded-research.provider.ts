@@ -31,7 +31,7 @@ import {
 
 export const RESEARCH_FETCH = Symbol("RESEARCH_FETCH");
 
-const DEFAULT_SEARCH_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_SEARCH_MODEL = "gemini-2.5-flash";
 const DEFAULT_REQUEST_TIMEOUT_MS = 90_000;
 const MIN_REQUEST_TIMEOUT_MS = 1_000;
 const MAX_REQUEST_TIMEOUT_MS = 120_000;
@@ -199,7 +199,15 @@ export class GeminiGroundedResearchProvider implements ResearchProvider {
     const prompt = [
       `Research mode: ${input.mode}`,
       "Research request:",
-      input.query.trim()
+      input.query.trim(),
+      "",
+      "Return a concise Markdown report using exactly these level-two headings:",
+      "## Summary",
+      "## Key Findings",
+      "## Recommendations",
+      "## Risks",
+      "## Action Plan",
+      "Every section must contain meaningful content. Use bullet lists for all sections except Summary."
     ];
 
     if (urls.length > 0) {

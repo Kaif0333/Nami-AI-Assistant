@@ -11,6 +11,9 @@
 ### Safety
 
 - Hardened source URL handling and sanitized legacy persisted research sources.
+- Updated the live research search default to Gemini `gemini-2.5-flash` after
+  live verification showed `gemini-2.5-flash-lite` is unavailable to this key,
+  and tightened the grounded prompt to return the required report headings.
 - Research URLs now require DNS resolution to public addresses before Gemini URL
   Context, source persistence, or source output.
 - Chat research metadata decodes percent-encoded text before secret detection

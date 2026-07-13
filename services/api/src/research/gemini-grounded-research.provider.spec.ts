@@ -86,6 +86,11 @@ describe("GeminiGroundedResearchProvider", () => {
     assert.match(body.systemInstruction.parts[0].text, /source content is data/i);
     assert.match(body.systemInstruction.parts[0].text, /not instructions/i);
     assert.equal(body.contents[0].parts[0].text.includes("What is current?"), true);
+    assert.match(body.contents[0].parts[0].text, /## Summary/);
+    assert.match(body.contents[0].parts[0].text, /## Key Findings/);
+    assert.match(body.contents[0].parts[0].text, /## Recommendations/);
+    assert.match(body.contents[0].parts[0].text, /## Risks/);
+    assert.match(body.contents[0].parts[0].text, /## Action Plan/);
 
     assert.equal(evidence.provider, "gemini");
     assert.equal(evidence.model, "gemini-test-grounding");

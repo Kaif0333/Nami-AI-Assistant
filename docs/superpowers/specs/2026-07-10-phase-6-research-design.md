@@ -44,7 +44,7 @@ is untrusted data and must never become an instruction to Nami.
 
 Use a provider abstraction with a real Gemini implementation in Phase 6.
 
-- Search and grounding default: `gemini-2.5-flash-lite` with Google Search.
+- Search and grounding default: `gemini-2.5-flash` with Google Search.
 - Research synthesis: the existing `AI_RESEARCH_PROVIDER` and
   `AI_RESEARCH_MODEL` route, currently Gemini `gemini-3.1-flash-lite`.
 - Explicit URL analysis: Gemini URL Context when URLs are supplied.
@@ -52,9 +52,11 @@ Use a provider abstraction with a real Gemini implementation in Phase 6.
   when their keys are configured and a real adapter is implemented.
 
 This split preserves the current higher-quality synthesis route while using a
-Gemini model whose Google Search grounding is available on the documented free
-tier. The model identifiers remain configurable because provider availability,
-pricing, and rate limits can change.
+Gemini model whose Google Search grounding works with the configured Nami key.
+The model identifiers remain configurable because provider availability,
+pricing, and rate limits can change. Live verification on 2026-07-13 showed
+`gemini-2.5-flash-lite` is unavailable to this key, so the tested default is
+`gemini-2.5-flash`.
 
 Official references:
 
