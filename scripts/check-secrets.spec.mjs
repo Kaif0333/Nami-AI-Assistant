@@ -38,7 +38,17 @@ describe("check-secrets historical sentinel handling", () => {
 
   it("continues scanning the rest of a historical sentinel line", () => {
     const findings = scanContentForSecrets(
-      `const values = "${titleSentinel} ${realSecret}";`,
+      `const values = "${titleSentinel}", "${realSecret}";`,
+      `261ae3b:${historicalPath}`
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.kind, "openai-like");
+  });
+
+  it("does not remove a legacy sentinel when it is embedded inside a longer token", () => {
+    const findings = scanContentForSecrets(
+      `const value = "${titleSentinel}extra";`,
       `261ae3b:${historicalPath}`
     );
 

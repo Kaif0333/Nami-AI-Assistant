@@ -150,7 +150,7 @@ function removeKnownHistoricalTestSentinels(line, locationPrefix) {
   let sanitized = line;
 
   for (const sentinel of historicalSentinels) {
-    sanitized = sanitized.split(sentinel).join("");
+    sanitized = sanitized.replaceAll(`"${sentinel}"`, '""');
   }
 
   return sanitized;
