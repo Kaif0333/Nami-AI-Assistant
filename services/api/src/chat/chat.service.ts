@@ -61,6 +61,8 @@ const maxResearchMetadataDomainCharacters = 120;
 const maxResearchMetadataUrlCharacters = 500;
 const maxResearchMetadataWarningCharacters = 300;
 const maxResearchMetadataDecodeRounds = 4;
+const defaultCompactResearchLines = 5;
+const maxCompactResearchLines = 8;
 const secretLikeResearchValuePattern =
   /(api[_ -]?key|secret|token|password|credential|authorization|cookie)\s*[:=]\s*\S+/i;
 
@@ -237,7 +239,7 @@ export class ChatService {
         urls: researchIntent.urls
       });
       const research = toChatResearchMetadata(run);
-      const reply = formatResearchReply(run);
+      const reply = formatResearchReply(run, message);
 
       await this.recordConversationTurn(conversationId, message, reply, {
         research
@@ -1383,7 +1385,13 @@ function truncateChatResearchMetadataText(value: string, limit: number) {
   return normalized.length > limit ? normalized.slice(0, limit) : normalized;
 }
 
-function formatResearchReply(run: ResearchRun) {
+function formatResearchReply(run: ResearchRun, userMessage = "") {
+  const lineLimit = getRequestedResearchLineLimit(userMessage);
+
+  if (lineLimit !== undefined) {
+    return formatCompactResearchReply(run, lineLimit);
+  }
+
   return [
     "## Summary",
     run.summary,
@@ -1396,6 +1404,96 @@ function formatResearchReply(run: ResearchRun) {
 
 function formatResearchSection(title: string, items: string[]) {
   return [`## ${title}`, ...items.map((item) => `- ${item}`)].join("\n");
+}
+
+function getRequestedResearchLineLimit(message: string) {
+  const normalized = message.toLowerCase();
+  const rangeMatch = normalized.match(
+    /\b(\d{1,2})\s*(?:-|to)\s*(\d{1,2})\s*(?:lines?|sentences?|points?)\b/
+  );
+
+  if (rangeMatch) {
+    return clampCompactResearchLines(Number(rangeMatch[2]));
+  }
+
+  const exactMatch = normalized.match(
+    /\b(?:in|within|under|max(?:imum)?(?: of)?|limit(?: it)? to|only)\s*(\d{1,2})\s*(?:lines?|sentences?|points?)\b/
+  );
+
+  if (exactMatch) {
+    return clampCompactResearchLines(Number(exactMatch[1]));
+  }
+
+  if (/\b(brief|short|quick|concise|summari[sz]e|summary)\b/.test(normalized)) {
+    return defaultCompactResearchLines;
+  }
+
+  return undefined;
+}
+
+function clampCompactResearchLines(value: number) {
+  if (!Number.isFinite(value)) {
+    return defaultCompactResearchLines;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), 1), maxCompactResearchLines);
+}
+
+function formatCompactResearchReply(run: ResearchRun, lineLimit: number) {
+  const candidates = [
+    run.summary,
+    ...run.keyFindings,
+    ...run.recommendations,
+    ...run.risks,
+    ...run.actionPlan
+  ].flatMap(splitCompactResearchText);
+  const uniqueLines: string[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const normalized = candidate.replaceAll(/\s+/g, " ").trim();
+    const key = normalized.toLowerCase();
+
+    if (!normalized || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueLines.push(normalized);
+
+    if (uniqueLines.length >= lineLimit) {
+      break;
+    }
+  }
+
+  return uniqueLines.join("\n");
+}
+
+function splitCompactResearchText(value: string) {
+  const normalized = stripMarkdownForCompactResearch(value);
+
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function stripMarkdownForCompactResearch(value: string) {
+  return value
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\[([^\]]+)]\(([^)]+)\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/[*_~]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function createMemoryTitle(content: string) {

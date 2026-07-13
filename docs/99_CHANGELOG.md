@@ -1,5 +1,24 @@
 # 99 — Changelog
 
+## [0.6.8] - 2026-07-13
+
+### Fixed
+
+- Voice playback now keeps a single active speech source, waits for generated
+  audio to finish before returning to idle, and cancels old playback before
+  starting a new response.
+- Browser TTS fallback now prefers female voices and refuses obvious male-only
+  fallback voices instead of unexpectedly switching voice gender.
+- Speech output now strips markdown/code formatting before synthesis so symbols
+  like asterisks are not read aloud.
+- Chat research replies now honor short line-count and summary requests instead
+  of always returning a full multi-section report.
+
+### Changed
+
+- Nami chat instructions now reflect Phase 6 source-backed research and a
+  stricter concise default response style.
+
 ## [0.6.7] - 2026-07-13
 
 ### Added

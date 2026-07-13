@@ -16,6 +16,7 @@ import type {
 } from "../research/research.types";
 import { SafeActionPolicyService } from "../safety/safe-action-policy.service";
 import { ChatService } from "./chat.service";
+import { NAMI_CHAT_INSTRUCTIONS } from "./nami-chat.prompt";
 
 describe("ChatService conversation history", () => {
   it("stores user and assistant messages in the fallback conversation store", async () => {
@@ -348,6 +349,42 @@ describe("ChatService conversation history", () => {
 
     assert.equal(researchInputs[0].mode, "deep");
     assert.equal(response.research?.mode, "deep");
+  });
+
+  it("honors short line-count requests for research replies", async () => {
+    const researchInputs: ResearchRequestInput[] = [];
+    const service = createChatService([], [], undefined, [], {
+      researchService: createResearchService(researchInputs, (mode) => ({
+        ...createResearchRun(mode),
+        query: "Albert Einstein summary",
+        summary:
+          "Albert Einstein was a German-born theoretical physicist who transformed modern physics. He developed the theory of relativity and helped explain the photoelectric effect. His work reshaped ideas about space, time, energy, and gravity. Einstein became one of the most influential scientists in history.",
+        keyFindings: [
+          "He received the 1921 Nobel Prize in Physics.",
+          "His equation E = mc^2 became one of science's best-known ideas."
+        ]
+      }))
+    });
+
+    const response = await service.sendMessage({
+      message:
+        "Do a deep research on Albert Einstein and summarize like 4 to 5 lines about him.",
+      mode: "chat"
+    });
+    const lines = response.reply.split(/\r?\n/).filter(Boolean);
+
+    assert.equal(researchInputs[0].mode, "deep");
+    assert.equal(response.research?.mode, "deep");
+    assert.ok(lines.length <= 5);
+    assert.doesNotMatch(response.reply, /^##/m);
+    assert.doesNotMatch(response.reply, /\*\*/);
+  });
+
+  it("keeps model instructions aligned with concise Phase 6 chat behavior", () => {
+    assert.match(NAMI_CHAT_INSTRUCTIONS, /Phase 6/);
+    assert.match(NAMI_CHAT_INSTRUCTIONS, /3-5 short sentences/);
+    assert.match(NAMI_CHAT_INSTRUCTIONS, /line count/);
+    assert.doesNotMatch(NAMI_CHAT_INSTRUCTIONS, /web research.+yet/i);
   });
 
   it("handles blocked and approval-required actions before research", async () => {

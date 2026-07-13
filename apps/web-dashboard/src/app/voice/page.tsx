@@ -31,6 +31,10 @@ import {
 } from "@/lib/nami-api";
 import type { VoiceStatus } from "@/lib/nami-api";
 import { cn } from "@/lib/utils";
+import {
+  formatTextForSpeech,
+  selectPreferredFemaleVoice
+} from "@/lib/voice-text";
 
 type VoiceState =
   | "idle"
@@ -81,6 +85,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
+function getCurrentTimestampMs() {
+  return Date.now();
+}
+
 function getRecorderMimeType(supportedMimeTypes: string[]) {
   const candidates = [
     "audio/webm;codecs=opus",
@@ -95,41 +103,6 @@ function getRecorderMimeType(supportedMimeTypes: string[]) {
       supportedMimeTypes.includes(candidate.split(";")[0])
   );
 }
-
-const preferredFemaleVoiceNames = [
-  "Microsoft Zira",
-  "Microsoft Aria",
-  "Microsoft Jenny",
-  "Microsoft Sonia",
-  "Microsoft Natasha",
-  "Google US English Female",
-  "Google UK English Female",
-  "Samantha",
-  "Victoria",
-  "Karen",
-  "Tessa",
-  "Moira",
-  "Joanna",
-  "Salli",
-  "Kendra"
-];
-
-const preferredFemaleVoiceFragments = [
-  "zira",
-  "aria",
-  "jenny",
-  "sonia",
-  "natasha",
-  "female",
-  "samantha",
-  "victoria",
-  "karen",
-  "tessa",
-  "moira",
-  "joanna",
-  "salli",
-  "kendra"
-];
 
 function getBrowserVoices() {
   const voices = window.speechSynthesis.getVoices();
@@ -156,43 +129,11 @@ function getBrowserVoices() {
   return Promise.resolve(voices);
 }
 
-function selectBrowserVoice(voiceName: string, voices: SpeechSynthesisVoice[]) {
-  if (voiceName && voiceName !== "system" && voiceName !== "female") {
-    const exactMatch = voices.find((voice) => voice.name === voiceName);
-
-    if (exactMatch) {
-      return exactMatch;
-    }
-
-    const namedMatch = voices.find((voice) =>
-      voice.name.toLowerCase().includes(voiceName.toLowerCase())
-    );
-
-    if (namedMatch) {
-      return namedMatch;
-    }
-  }
-
-  for (const preferredName of preferredFemaleVoiceNames) {
-    const match = voices.find((voice) => voice.name.includes(preferredName));
-
-    if (match) {
-      return match;
-    }
-  }
-
-  return (
-    voices.find((voice) =>
-      preferredFemaleVoiceFragments.some((fragment) =>
-        voice.name.toLowerCase().includes(fragment)
-      )
-    ) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ??
-    voices[0]
-  );
-}
-
-async function speakWithBrowser(text: string, voiceName: string) {
+async function speakWithBrowser(
+  text: string,
+  voiceName: string,
+  signal: AbortSignal
+) {
   if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
     return Promise.reject(
       new Error("Browser speech synthesis is not available in this runtime.")
@@ -202,21 +143,103 @@ async function speakWithBrowser(text: string, voiceName: string) {
   const voices = await getBrowserVoices();
 
   return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(text);
-    const selectedVoice = selectBrowserVoice(voiceName, voices);
+    const selectedVoice = selectPreferredFemaleVoice(voiceName, voices);
+    let settled = false;
+
+    function settle(error?: Error) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      signal.removeEventListener("abort", handleAbort);
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    }
+
+    function handleAbort() {
+      window.speechSynthesis.cancel();
+      settle();
+    }
 
     if (selectedVoice) {
       utterance.voice = selectedVoice;
+    } else {
+      settle(
+        new Error(
+          "No female browser voice is available. Install or enable a female English voice for browser TTS fallback."
+        )
+      );
+      return;
     }
 
     utterance.pitch = 1.12;
     utterance.rate = 1.02;
-    utterance.onend = () => resolve();
+    utterance.onend = () => settle();
     utterance.onerror = () =>
-      reject(new Error("Browser speech synthesis failed."));
+      settle(new Error("Browser speech synthesis failed."));
 
+    signal.addEventListener("abort", handleAbort, { once: true });
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
+  });
+}
+
+async function playAudioToEnd(audio: HTMLAudioElement, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+
+    const settle = (error?: Error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      signal.removeEventListener("abort", handleAbort);
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    };
+
+    const handleEnded = () => settle();
+    const handleError = () =>
+      settle(new Error("Generated speech audio failed to play."));
+    const handleAbort = () => {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      settle();
+    };
+
+    audio.addEventListener("ended", handleEnded, { once: true });
+    audio.addEventListener("error", handleError, { once: true });
+    signal.addEventListener("abort", handleAbort, { once: true });
+
+    audio.play().catch((error: unknown) => {
+      settle(error instanceof Error ? error : new Error("Audio playback failed."));
+    });
   });
 }
 
@@ -225,6 +248,9 @@ export default function VoicePage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingStartedAtRef = useRef<number>(0);
+  const playbackAbortRef = useRef<AbortController | null>(null);
+  const playbackTokenRef = useRef(0);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
@@ -272,6 +298,53 @@ export default function VoicePage() {
     }
   }, []);
 
+  const stopMediaTracks = useCallback(() => {
+    for (const track of mediaStreamRef.current?.getTracks() ?? []) {
+      track.stop();
+    }
+
+    mediaStreamRef.current = null;
+  }, []);
+
+  const stopSpeechSources = useCallback(() => {
+    playbackAbortRef.current?.abort();
+    playbackAbortRef.current = null;
+
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.removeAttribute("src");
+      currentAudioRef.current.load();
+      currentAudioRef.current = null;
+    }
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  const stopSpeechPlayback = useCallback(() => {
+    playbackTokenRef.current += 1;
+    stopSpeechSources();
+  }, [stopSpeechSources]);
+
+  const beginSpeechPlayback = useCallback(() => {
+    playbackTokenRef.current += 1;
+    stopSpeechSources();
+
+    const controller = new AbortController();
+
+    playbackAbortRef.current = controller;
+
+    return {
+      signal: controller.signal,
+      token: playbackTokenRef.current
+    };
+  }, [stopSpeechSources]);
+
+  function isCurrentPlayback(token: number) {
+    return playbackTokenRef.current === token;
+  }
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void refreshStatus();
@@ -283,22 +356,17 @@ export default function VoicePage() {
   useEffect(() => {
     return () => {
       stopMediaTracks();
+      stopSpeechPlayback();
     };
-  }, []);
-
-  function stopMediaTracks() {
-    for (const track of mediaStreamRef.current?.getTracks() ?? []) {
-      track.stop();
-    }
-
-    mediaStreamRef.current = null;
-  }
+  }, [stopMediaTracks, stopSpeechPlayback]);
 
   function pushTimeline(event: Omit<TimelineEvent, "id">) {
     setTimeline((current) => [{ id: createId(), ...event }, ...current]);
   }
 
   async function startRecording() {
+    stopSpeechPlayback();
+
     if (!voiceStatus?.stt.configured) {
       const message =
         "Voice STT provider is not configured. Configure GROQ_API_KEY or OPENAI_API_KEY to use push-to-talk voice.";
@@ -339,7 +407,7 @@ export default function VoicePage() {
 
       chunksRef.current = [];
       mediaStreamRef.current = stream;
-      recordingStartedAtRef.current = Date.now();
+      recordingStartedAtRef.current = getCurrentTimestampMs();
 
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
@@ -382,7 +450,10 @@ export default function VoicePage() {
   }
 
   async function submitRecording(mimeType: string) {
-    const durationMs = Math.max(0, Date.now() - recordingStartedAtRef.current);
+    const durationMs = Math.max(
+      0,
+      getCurrentTimestampMs() - recordingStartedAtRef.current
+    );
     const audio = new Blob(chunksRef.current, { type: mimeType });
 
     stopMediaTracks();
@@ -495,35 +566,60 @@ export default function VoicePage() {
   }
 
   async function playSpeech(text: string) {
+    const spokenText = formatTextForSpeech(text);
+
+    if (!spokenText) {
+      return;
+    }
+
+    const { signal, token } = beginSpeechPlayback();
+
     try {
       setVoiceState("speaking");
       pushTimeline({
         label: "Speech requested",
-        detail: `${text.length} characters`,
+        detail: `${spokenText.length} spoken characters`,
         status: "pending"
       });
-      const speech = await synthesizeVoice({ text });
+      const speech = await synthesizeVoice({ text: spokenText });
+
+      if (signal.aborted || !isCurrentPlayback(token)) {
+        return;
+      }
 
       if (speech.clientSide) {
-        await speakWithBrowser(text, speech.voice);
+        await speakWithBrowser(spokenText, speech.voice, signal);
       } else if (speech.audioBase64) {
         const audio = new Audio(`data:${speech.mimeType};base64,${speech.audioBase64}`);
 
-        await audio.play();
+        currentAudioRef.current = audio;
+        await playAudioToEnd(audio, signal);
       } else {
         throw new Error("Voice speech response did not include playable audio.");
       }
 
+      if (signal.aborted || !isCurrentPlayback(token)) {
+        return;
+      }
+
+      currentAudioRef.current = null;
+      playbackAbortRef.current = null;
       setVoiceState("idle");
       pushTimeline({
-        label: "Speech playing",
+        label: "Speech completed",
         detail: `${speech.provider}/${speech.model}`,
         status: "ok"
       });
     } catch (error) {
+      if (signal.aborted || !isCurrentPlayback(token)) {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : "Voice speech failed.";
 
+      currentAudioRef.current = null;
+      playbackAbortRef.current = null;
       setVoiceState("error");
       setErrorMessage(message);
       pushTimeline({
